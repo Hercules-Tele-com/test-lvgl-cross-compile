@@ -111,15 +111,16 @@ void mock_can_update(MockCANData* data, CANReceiver* receiver) {
     gps_time_state.minute = tm_info->tm_min;
     gps_time_state.second = tm_info->tm_sec;
 
-    // Since we can't directly access private members, we would need to either:
-    // 1. Make CANReceiver a friend class
-    // 2. Add setter methods to CANReceiver
-    // 3. Use a different architecture
-
-    // For this mock implementation, we'll use the reflection that the real
-    // implementation would receive these via CAN and unpack them.
-    // This is a limitation of the mock - in the real system, the CAN bus
-    // handles the transport.
+    // Inject mock data into receiver using setter methods
+    receiver->setBatterySOCState(battery_soc_state);
+    receiver->setVehicleSpeedState(speed_state);
+    receiver->setMotorRPMState(rpm_state);
+    receiver->setInverterState(inverter_state);
+    receiver->setBatteryTempState(battery_temp_state);
+    receiver->setChargerState(charger_state);
+    receiver->setGPSPositionState(gps_pos_state);
+    receiver->setGPSVelocityState(gps_vel_state);
+    receiver->setGPSTimeState(gps_time_state);
 
     std::cout << "[MockCAN] Generated data - Speed: " << speed
               << " km/h, SOC: " << battery_soc << "%" << std::endl;
