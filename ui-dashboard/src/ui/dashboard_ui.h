@@ -11,6 +11,7 @@ public:
 
     void init();
     void update(const CANReceiver& can);
+    void updateTime(uint8_t hours, uint8_t minutes, uint8_t seconds);
 
 private:
     void createLayout();
@@ -30,8 +31,10 @@ private:
     lv_obj_t* inverter_temp_label;
     lv_obj_t* gps_label;
     lv_obj_t* status_label;
+    lv_obj_t* time_label;
 
     lv_meter_indicator_t* speed_indic;
+    lv_style_t time_style;
 };
 
 #endif // DASHBOARD_UI_H

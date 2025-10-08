@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <ctime>
 #include "lvgl.h"
 #include "dashboard_ui.h"
 #include "can_receiver.h"
@@ -32,7 +33,7 @@ int main(int argc, char* argv[]) {
     std::cerr << "Unsupported platform" << std::endl;
     return 1;
 #endif
-
+    std::cout << "Display initialized" << std::endl;
     // Initialize CAN receiver
     CANReceiver can;
     if (!can.init()) {
@@ -52,18 +53,26 @@ int main(int argc, char* argv[]) {
     std::cout << "Dashboard UI initialized" << std::endl;
 
     // Main loop
-    std::cout << "Entering main loop..." << std::endl;
+    std::cout << "==========================> Entering main loop..." << std::endl;
     auto last_update = steady_clock::now();
 
     while (true) {
         auto now = steady_clock::now();
         auto elapsed = duration_cast<milliseconds>(now - last_update).count();
 
+        // Get current time
+        auto time_now = system_clock::now();
+        time_t time_t_now = system_clock::to_time_t(time_now);
+        struct tm* local_time = localtime(&time_t_now);
+
         // Update CAN data
         can.update();
 
         // Update UI with CAN data
         dashboard.update(can);
+
+        // Update time display
+        dashboard.updateTime(local_time->tm_hour, local_time->tm_min, local_time->tm_sec);
 
         // Update display
 #ifdef PLATFORM_WINDOWS

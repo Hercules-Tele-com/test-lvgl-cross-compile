@@ -25,7 +25,10 @@
       "Bash(./vcpkg install:*)",
       "Bash(curl -L https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-devel-2.30.10-mingw.tar.gz -o SDL2-mingw.tar.gz)",
       "Bash(tar:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(where gdb)",
+      "Bash(./leaf-can-dashboard.exe)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

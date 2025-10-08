@@ -94,14 +94,13 @@ void sdl_display_update() {
         }
     }
 
-    // Clear screen
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
-    SDL_RenderClear(renderer);
+    // Force full screen refresh
+    lv_obj_invalidate(lv_scr_act());
 
-    // LVGL timer handler
+    // LVGL timer handler (renders to buffer and calls flush callback)
     lv_timer_handler();
 
-    // Present renderer
+    // Present the rendered frame
     SDL_RenderPresent(renderer);
 }
 

@@ -11,6 +11,7 @@ DashboardUI::DashboardUI() :
     inverter_temp_label(nullptr),
     gps_label(nullptr),
     status_label(nullptr),
+    time_label(nullptr),
     speed_indic(nullptr)
 {
 }
@@ -25,7 +26,7 @@ void DashboardUI::init() {
 void DashboardUI::createLayout() {
     // Create main screen
     screen = lv_scr_act();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x0000FF), 0);
 
     // Title
     lv_obj_t* title = lv_label_create(screen);
@@ -136,6 +137,20 @@ void DashboardUI::createLayout() {
     lv_label_set_text(status_label, "Initializing...");
     lv_obj_set_style_text_color(status_label, lv_color_hex(0x00FF00), 0);
     lv_obj_align(status_label, LV_ALIGN_TOP_RIGHT, -10, 10);
+
+    // Time label (centered horizontally, middle of screen vertically)
+    time_label = lv_label_create(screen);
+    lv_label_set_text(time_label, "00:00:00");
+    lv_obj_set_style_text_font(time_label, &lv_font_montserrat_48, 0);  // Closest available to 55pt
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xFFFF00), 0);
+    lv_obj_set_style_bg_opa(time_label, LV_OPA_TRANSP, 0);  // Transparent background
+    lv_obj_set_style_pad_all(time_label, 0, 0);  // No padding
+    lv_obj_set_size(time_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);  // Auto-size to content
+    lv_obj_align(time_label, LV_ALIGN_CENTER, 80, -20);  // Offset to right of speed meter
+
+    // Initialize time style for dynamic brightness
+    lv_style_init(&time_style);
+    lv_style_set_text_font(&time_style, &lv_font_montserrat_48);
 }
 
 void DashboardUI::updateSpeedGauge(float speed) {
@@ -186,6 +201,28 @@ void DashboardUI::updateGPSInfo(const GPSPositionState& pos, const GPSVelocitySt
             snprintf(buf, sizeof(buf), "No GPS fix (Satellites: %d)", pos.satellites);
         }
         lv_label_set_text(gps_label, buf);
+    }
+}
+
+void DashboardUI::updateTime(uint8_t hours, uint8_t minutes, uint8_t seconds) {
+    static uint8_t last_second = 255;
+
+    if (time_label) {
+        // Calculate brightness: twice the number of seconds + 64
+        uint8_t brightness = (seconds * 2) + 64;
+        // Clamp to valid range (0-255)
+        if (brightness > 255) brightness = 255;
+
+        // Create yellow color with dynamic brightness
+        lv_color_t yellow = lv_color_make(brightness, brightness, 0);
+
+        // Update text and style
+        lv_label_set_text_fmt(time_label, "%02d:%02d:%02d", hours, minutes, seconds);
+        lv_obj_set_style_text_color(time_label, yellow, 0);
+
+        // Force the object to be redrawn
+        lv_obj_invalidate(time_label);
+        lv_refr_now(NULL);
     }
 }
 
