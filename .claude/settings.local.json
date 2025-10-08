@@ -3,7 +3,19 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Nissan Leaf CAN Network monorepo\n\n- Shared LeafCANBus library for ESP32 (subscribe/publish CAN interface)\n- Example GPS module with CAN publishing\n- Cross-platform LVGL dashboard (Windows SDL2 + Raspberry Pi framebuffer)\n- SocketCAN integration for Raspberry Pi\n- Mock CAN data generator for Windows development\n- Comprehensive build instructions for ESP32 and Raspberry Pi\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(where gh)",
+      "Bash(\"C:\\Program Files\\GitHub CLI\\gh.exe\" auth status)",
+      "Bash(\"C:\\Program Files\\GitHub CLI\\gh.exe\" repo create test-lvgl-cross-compile --public --source=. --description=\"Nissan Leaf CAN Network monorepo: ESP32 modules + Raspberry Pi LVGL dashboard with cross-platform support\" --push)",
+      "Bash(git commit:*)",
+      "Bash(start https://github.com/new)"
     ],
     "deny": [],
     "ask": []
