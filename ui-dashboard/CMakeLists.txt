@@ -65,21 +65,28 @@ target_link_libraries(${PROJECT_NAME} PRIVATE lvgl::lvgl)
 
 # Platform-specific dependencies
 if(PLATFORM STREQUAL "windows")
-    # SDL2 for Windows
-    find_package(SDL2 REQUIRED)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${SDL2_LIBRARIES})
+    # SDL2 for Windows - try external directory first
+    set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL2-2.30.10/x86_64-w64-mingw32")
 
-    # Copy SDL2.dll to output directory on Windows
-    if(SDL2_LIBRARIES)
-        get_filename_component(SDL2_DLL_DIR ${SDL2_LIBRARIES} DIRECTORY)
-        file(GLOB SDL2_DLLS "${SDL2_DLL_DIR}/*.dll")
+    if(EXISTS "${SDL2_DIR}/include/SDL2/SDL.h")
+        message(STATUS "Using SDL2 from external directory: ${SDL2_DIR}")
+        target_include_directories(${PROJECT_NAME} PRIVATE "${SDL2_DIR}/include/SDL2")
+        target_link_directories(${PROJECT_NAME} PRIVATE "${SDL2_DIR}/lib")
+        target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 SDL2main SDL2 -mwindows)
+
+        # Copy SDL2.dll to output directory
+        file(GLOB SDL2_DLLS "${SDL2_DIR}/bin/*.dll")
         foreach(DLL ${SDL2_DLLS})
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${DLL} $<TARGET_FILE_DIR:${PROJECT_NAME}>
             )
         endforeach()
+    else()
+        # Fallback to find_package
+        find_package(SDL2 REQUIRED)
+        target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${SDL2_LIBRARIES})
     endif()
 
 elseif(PLATFORM STREQUAL "linux")

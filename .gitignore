@@ -72,3 +72,8 @@ venv/
 # OS
 Thumbs.db
 .DS_Store
+
+# External dependencies (download separately)
+external/SDL2-*/
+external/*.tar.gz
+external/*.zip

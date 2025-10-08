@@ -15,7 +15,17 @@
       "Bash(\"C:\\Program Files\\GitHub CLI\\gh.exe\" auth status)",
       "Bash(\"C:\\Program Files\\GitHub CLI\\gh.exe\" repo create test-lvgl-cross-compile --public --source=. --description=\"Nissan Leaf CAN Network monorepo: ESP32 modules + Raspberry Pi LVGL dashboard with cross-platform support\" --push)",
       "Bash(git commit:*)",
-      "Bash(start https://github.com/new)"
+      "Bash(start https://github.com/new)",
+      "Bash(dir)",
+      "Bash(where cmake)",
+      "Bash(cmake:*)",
+      "Bash(test:*)",
+      "Read(//c/**)",
+      "Bash(./bootstrap-vcpkg.bat)",
+      "Bash(./vcpkg install:*)",
+      "Bash(curl -L https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-devel-2.30.10-mingw.tar.gz -o SDL2-mingw.tar.gz)",
+      "Bash(tar:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []
