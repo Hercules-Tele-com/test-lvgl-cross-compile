@@ -2,15 +2,21 @@
 #include <thread>
 #include <chrono>
 #include <ctime>
+
 #include "lvgl.h"
-#include "dashboard_ui.h"
 #include "can_receiver.h"
 
+// Platform display backends
 #ifdef PLATFORM_WINDOWS
 #include "windows/sdl_display.h"
 #elif defined(PLATFORM_LINUX)
 #include "linux/fbdev_display.h"
 #endif
+
+// SquareLine UI (C API)
+extern "C" {
+    #include "ui.h"
+}
 
 using namespace std::chrono;
 
@@ -34,7 +40,8 @@ int main(int argc, char* argv[]) {
     return 1;
 #endif
     std::cout << "Display initialized" << std::endl;
-    // Initialize CAN receiver
+
+    // Initialize CAN receiver (mock on Windows, SocketCAN on Linux)
     CANReceiver can;
     if (!can.init()) {
         std::cerr << "Failed to initialize CAN receiver" << std::endl;
@@ -47,47 +54,47 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "CAN receiver initialized" << std::endl;
 
-    // Initialize dashboard UI
-    DashboardUI dashboard;
-    dashboard.init();
-    std::cout << "Dashboard UI initialized" << std::endl;
+    // ----------------------------------------------------------------
+    // Load the NEW SquareLine UI (this replaces the old hand-made UI)
+    // ----------------------------------------------------------------
+    ui_init();  // SquareLine generates and loads the default screen internally
 
+    // If you want to force a specific screen after ui_init(), uncomment and
+    // adjust the symbol (e.g., ui_Screen1) to your exported screen name:
+    //
+    // extern lv_obj_t* ui_Screen1;
+    // lv_scr_load(ui_Screen1);
+
+    std::cout << "SquareLine UI initialized" << std::endl;
+
+    // ----------------------------------------------------------------
     // Main loop
+    // ----------------------------------------------------------------
     std::cout << "==========================> Entering main loop..." << std::endl;
-    auto last_update = steady_clock::now();
 
     while (true) {
-        auto now = steady_clock::now();
-        auto elapsed = duration_cast<milliseconds>(now - last_update).count();
-
-        // Get current time
+        // Time (still available if you later bind it to UI)
         auto time_now = system_clock::now();
         time_t time_t_now = system_clock::to_time_t(time_now);
         struct tm* local_time = localtime(&time_t_now);
 
-        // Update CAN data
+        // Update CAN data (mock on Windows will print to console)
         can.update();
 
-        // Update UI with CAN data
-        dashboard.update(can);
+        // If you later wire SquareLine widgets, you can push values here.
+        // For now we just keep updating LVGL.
 
-        // Update time display
-        dashboard.updateTime(local_time->tm_hour, local_time->tm_min, local_time->tm_sec);
-
-        // Update display
 #ifdef PLATFORM_WINDOWS
         sdl_display_update();
 #elif defined(PLATFORM_LINUX)
         fbdev_display_update();
 #endif
 
-        // Sleep to maintain ~30 FPS
+        // ~30 FPS
         std::this_thread::sleep_for(milliseconds(33));
-
-        last_update = now;
     }
 
-    // Cleanup (unreachable in current loop, but good practice)
+    // Cleanup (unreached with current loop, but kept for completeness)
 #ifdef PLATFORM_WINDOWS
     sdl_display_cleanup();
 #elif defined(PLATFORM_LINUX)

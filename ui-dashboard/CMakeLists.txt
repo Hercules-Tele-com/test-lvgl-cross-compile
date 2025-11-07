@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
+
+# -------- Project --------
 project(leaf-can-dashboard VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
@@ -13,13 +15,11 @@ elseif(UNIX)
     set(PLATFORM "linux")
     add_definitions(-DPLATFORM_LINUX)
 endif()
-
 message(STATUS "Building for platform: ${PLATFORM}")
 
-# LVGL configuration
+# -------- LVGL config --------
 set(LV_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" CACHE STRING "" FORCE)
 
-# Fetch LVGL
 include(FetchContent)
 FetchContent_Declare(
     lvgl
@@ -28,76 +28,98 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(lvgl)
 
-# Source files
+# -------- Sources --------
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(UI_DIR  ${SRC_DIR}/ui)
+set(UI_SCREENS_DIR    ${UI_DIR}/screens)
+set(UI_COMPONENTS_DIR ${UI_DIR}/components)
+set(UI_ASSETS_DIR     ${UI_DIR}/assets)   # legacy/alt location
+set(UI_IMAGES_DIR     ${UI_DIR}/images)   # your actual location
+set(PLAT_DIR ${SRC_DIR}/platform)
+set(SHARED_DIR ${SRC_DIR}/shared)
+
+# SquareLine generated C files (auto-pick what exists, including images/assets)
+file(GLOB UI_SCREENS     CONFIGURE_DEPENDS "${UI_SCREENS_DIR}/*.c")
+file(GLOB UI_COMPONENTS  CONFIGURE_DEPENDS "${UI_COMPONENTS_DIR}/*.c")
+file(GLOB UI_ASSETS_C    CONFIGURE_DEPENDS "${UI_ASSETS_DIR}/*.c")
+file(GLOB UI_IMAGES_C    CONFIGURE_DEPENDS "${UI_IMAGES_DIR}/*.c")
+
 set(SOURCES
-    src/main.cpp
-    src/ui/dashboard_ui.cpp
-    src/shared/can_receiver.cpp
+    ${SRC_DIR}/main.cpp
+    ${SRC_DIR}/ui/dashboard_ui.cpp
+    ${SHARED_DIR}/can_receiver.cpp
+
+    # SquareLine core
+    ${UI_DIR}/ui.c
+    ${UI_DIR}/ui_helpers.c
+
+    # Generated submodules
+    ${UI_COMPONENTS}
+    ${UI_SCREENS}
+    ${UI_ASSETS_C}
+    ${UI_IMAGES_C}
 )
 
-# Platform-specific sources
 if(PLATFORM STREQUAL "windows")
     list(APPEND SOURCES
-        src/platform/windows/sdl_display.cpp
-        src/platform/windows/mock_can.cpp
+        ${PLAT_DIR}/windows/sdl_display.cpp
+        ${PLAT_DIR}/windows/mock_can.cpp
     )
 elseif(PLATFORM STREQUAL "linux")
     list(APPEND SOURCES
-        src/platform/linux/fbdev_display.cpp
-        src/platform/linux/socketcan.cpp
+        ${PLAT_DIR}/linux/fbdev_display.cpp
+        ${PLAT_DIR}/linux/socketcan.cpp
     )
 endif()
 
-# Executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
+    ${SRC_DIR}
+    ${UI_DIR}
+    ${UI_COMPONENTS_DIR}
+    ${UI_SCREENS_DIR}
+    ${UI_ASSETS_DIR}
+    ${UI_IMAGES_DIR}
+    ${PLAT_DIR}
+    ${PLAT_DIR}/windows
+    ${PLAT_DIR}/linux
+    ${SHARED_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../lib/LeafCANBus/src
 )
 
-# Link LVGL
 target_link_libraries(${PROJECT_NAME} PRIVATE lvgl::lvgl)
 
-# Platform-specific dependencies
+# -------- Platform deps --------
 if(PLATFORM STREQUAL "windows")
-    # SDL2 for Windows - try external directory first
-    set(SDL2_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../external/SDL2-2.30.10/x86_64-w64-mingw32")
-
-    if(EXISTS "${SDL2_DIR}/include/SDL2/SDL.h")
-        message(STATUS "Using SDL2 from external directory: ${SDL2_DIR}")
-        target_include_directories(${PROJECT_NAME} PRIVATE "${SDL2_DIR}/include/SDL2")
-        target_link_directories(${PROJECT_NAME} PRIVATE "${SDL2_DIR}/lib")
-        target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 SDL2main SDL2 -mwindows)
-
-        # Copy SDL2.dll to output directory
-        file(GLOB SDL2_DLLS "${SDL2_DIR}/bin/*.dll")
-        foreach(DLL ${SDL2_DLLS})
-            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${DLL} $<TARGET_FILE_DIR:${PROJECT_NAME}>
-            )
-        endforeach()
-    else()
-        # Fallback to find_package
-        find_package(SDL2 REQUIRED)
-        target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
-        target_link_libraries(${PROJECT_NAME} PRIVATE ${SDL2_LIBRARIES})
-    endif()
-
+    find_package(SDL2 CONFIG REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main)
 elseif(PLATFORM STREQUAL "linux")
-    # pthreads for Linux
     find_package(Threads REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
 endif()
 
-# Installation
+# -------- Install --------
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 
-# Print build info
-message(STATUS "Sources: ${SOURCES}")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+# -------- Info --------
+message(STATUS "SquareLine UI sources found:")
+foreach(f IN LISTS UI_SCREENS)
+    message(STATUS "  - ${f}")
+endforeach()
+if(UI_ASSETS_C)
+    message(STATUS "SquareLine assets (assets/) found:")
+    foreach(f IN LISTS UI_ASSETS_C)
+        message(STATUS "  - ${f}")
+    endforeach()
+endif()
+if(UI_IMAGES_C)
+    message(STATUS "SquareLine images (images/) found:")
+    foreach(f IN LISTS UI_IMAGES_C)
+        message(STATUS "  - ${f}")
+    endforeach()
+endif()
+
+if(NOT UI_ASSETS_C AND NOT UI_IMAGES_C)
+    message(WARNING "No image C files found in ${UI_ASSETS_DIR} or ${UI_IMAGES_DIR}. If you use images, export them as C arrays (ui_img_*.c).")
+endif()
