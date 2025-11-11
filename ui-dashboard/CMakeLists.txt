@@ -34,7 +34,7 @@ set(UI_DIR  ${SRC_DIR}/ui)
 set(UI_SCREENS_DIR    ${UI_DIR}/screens)
 set(UI_COMPONENTS_DIR ${UI_DIR}/components)
 set(UI_ASSETS_DIR     ${UI_DIR}/assets)   # legacy/alt location
-set(UI_IMAGES_DIR     ${UI_DIR}/images)   # your actual location
+set(UI_IMAGES_DIR     ${UI_DIR}/images)   # actual location for exported images
 set(PLAT_DIR ${SRC_DIR}/platform)
 set(SHARED_DIR ${SRC_DIR}/shared)
 
@@ -88,7 +88,19 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../lib/LeafCANBus/src
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE lvgl::lvgl)
+# -------- Link Nissan Leaf CAN message pack/unpack (pure C++; no Arduino deps) --------
+set(LEAFCAN_MSG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lib/LeafCANBus/src")
+
+add_library(leafcanmsgs STATIC
+    "${LEAFCAN_MSG_DIR}/LeafCANMessages.cpp"
+)
+
+target_include_directories(leafcanmsgs PUBLIC
+    "${LEAFCAN_MSG_DIR}"
+)
+
+# Link LVGL and Leaf CAN messages
+target_link_libraries(${PROJECT_NAME} PRIVATE lvgl::lvgl leafcanmsgs)
 
 # -------- Platform deps --------
 if(PLATFORM STREQUAL "windows")
@@ -123,3 +135,4 @@ endif()
 if(NOT UI_ASSETS_C AND NOT UI_IMAGES_C)
     message(WARNING "No image C files found in ${UI_ASSETS_DIR} or ${UI_IMAGES_DIR}. If you use images, export them as C arrays (ui_img_*.c).")
 endif()
+

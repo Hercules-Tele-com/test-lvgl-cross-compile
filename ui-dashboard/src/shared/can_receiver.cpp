@@ -1,23 +1,14 @@
-#include "can_receiver.h"
+#include "shared/can_receiver.h"
+#include <stdio.h>
 #include <string.h>
 
 #ifdef PLATFORM_WINDOWS
-#include "windows/mock_can.h"
+  #include "windows/mock_can.h"
 #elif defined(PLATFORM_LINUX)
-#include "linux/socketcan.h"
+  #include "platform/linux/socketcan.h"
 #endif
 
-CANReceiver::CANReceiver() : platform_data(nullptr) {
-    memset(&inverter_state, 0, sizeof(inverter_state));
-    memset(&battery_soc_state, 0, sizeof(battery_soc_state));
-    memset(&battery_temp_state, 0, sizeof(battery_temp_state));
-    memset(&vehicle_speed_state, 0, sizeof(vehicle_speed_state));
-    memset(&motor_rpm_state, 0, sizeof(motor_rpm_state));
-    memset(&charger_state, 0, sizeof(charger_state));
-    memset(&gps_position_state, 0, sizeof(gps_position_state));
-    memset(&gps_velocity_state, 0, sizeof(gps_velocity_state));
-    memset(&gps_time_state, 0, sizeof(gps_time_state));
-}
+CANReceiver::CANReceiver() = default;
 
 CANReceiver::~CANReceiver() {
 #ifdef PLATFORM_WINDOWS
@@ -26,7 +17,11 @@ CANReceiver::~CANReceiver() {
     }
 #elif defined(PLATFORM_LINUX)
     if (platform_data) {
-        socketcan_cleanup((SocketCANData*)platform_data);
+        struct MultiCan { SocketCANData* ch0; SocketCANData* ch1; };
+        auto* mc = (MultiCan*)platform_data;
+        if (mc->ch0) socketcan_cleanup(mc->ch0);
+        if (mc->ch1) socketcan_cleanup(mc->ch1);
+        delete mc;
     }
 #endif
 }
@@ -35,9 +30,25 @@ bool CANReceiver::init() {
 #ifdef PLATFORM_WINDOWS
     platform_data = mock_can_init();
     return platform_data != nullptr;
+
 #elif defined(PLATFORM_LINUX)
-    platform_data = socketcan_init("can0");
-    return platform_data != nullptr;
+    struct MultiCan { SocketCANData* ch0; SocketCANData* ch1; };
+    auto* mc = new MultiCan();
+    mc->ch0 = socketcan_init("can0");
+    if (mc->ch0) printf("[CANReceiver] Opened can0\n");
+    else         printf("[CANReceiver] WARNING: can0 not available\n");
+
+    mc->ch1 = socketcan_init("can1");
+    if (mc->ch1) printf("[CANReceiver] Opened can1\n");
+    else         printf("[CANReceiver] INFO: can1 not available (continuing)\n");
+
+    if (!mc->ch0 && !mc->ch1) {
+        printf("[CANReceiver] ERROR: no CAN channels opened\n");
+        delete mc;
+        return false;
+    }
+    platform_data = mc;
+    return true;
 #else
     return false;
 #endif
@@ -49,40 +60,25 @@ void CANReceiver::update() {
         mock_can_update((MockCANData*)platform_data, this);
     }
 #elif defined(PLATFORM_LINUX)
-    if (platform_data) {
-        CANMessage msg;
-        while (socketcan_receive((SocketCANData*)platform_data, &msg)) {
-            // Unpack messages based on CAN ID
-            switch (msg.can_id) {
-                case CAN_ID_INVERTER_TELEMETRY:
-                    unpack_inverter_telemetry(msg.data, msg.len, &inverter_state);
-                    break;
-                case CAN_ID_BATTERY_SOC:
-                    unpack_battery_soc(msg.data, msg.len, &battery_soc_state);
-                    break;
-                case CAN_ID_BATTERY_TEMP:
-                    unpack_battery_temp(msg.data, msg.len, &battery_temp_state);
-                    break;
-                case CAN_ID_VEHICLE_SPEED:
-                    unpack_vehicle_speed(msg.data, msg.len, &vehicle_speed_state);
-                    break;
-                case CAN_ID_MOTOR_RPM:
-                    unpack_motor_rpm(msg.data, msg.len, &motor_rpm_state);
-                    break;
-                case CAN_ID_CHARGER_STATUS:
-                    unpack_charger_status(msg.data, msg.len, &charger_state);
-                    break;
-                case CAN_ID_GPS_POSITION:
-                    unpack_gps_position(msg.data, msg.len, &gps_position_state);
-                    break;
-                case CAN_ID_GPS_VELOCITY:
-                    unpack_gps_velocity(msg.data, msg.len, &gps_velocity_state);
-                    break;
-                case CAN_ID_GPS_TIME:
-                    unpack_gps_time(msg.data, msg.len, &gps_time_state);
-                    break;
+    if (!platform_data) return;
+    struct MultiCan { SocketCANData* ch0; SocketCANData* ch1; };
+    auto* mc = (MultiCan*)platform_data;
+
+    auto pump = [&](SocketCANData* ch) {
+        if (!ch) return;
+        CANMessage msg{};
+        while (socketcan_receive(ch, &msg)) {
+            printf("[CAN %s] ID=%03X DLC=%u DATA=", ch->interface,
+                   (msg.can_id & 0x1FFFFFFF), msg.len);
+            for (uint8_t i = 0; i < msg.len; ++i) {
+                printf("%s%02X", (i ? " " : ""), msg.data[i]);
             }
+            printf("\n");
         }
-    }
+    };
+
+    pump(mc->ch0);
+    pump(mc->ch1);
 #endif
 }
+
