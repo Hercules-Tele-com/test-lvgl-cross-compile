@@ -15,7 +15,7 @@ extern void ui_screen_main_screen_init(void);
 extern void ui_screen_main_screen_destroy(void);
 extern lv_obj_t * ui_screen_main;
 extern lv_obj_t * ui_Logo;
-extern lv_obj_t * ui_guage_soc;
+extern lv_obj_t * ui_guage_speed;
 extern lv_obj_t * ui_guage_temp_motor;
 extern lv_obj_t * ui_DNR;
 extern lv_obj_t * ui_guage_battery_soc;

@@ -7,7 +7,7 @@
 
 lv_obj_t * ui_screen_main = NULL;
 lv_obj_t * ui_Logo = NULL;
-lv_obj_t * ui_guage_soc = NULL;
+lv_obj_t * ui_guage_speed = NULL;
 lv_obj_t * ui_guage_temp_motor = NULL;
 lv_obj_t * ui_DNR = NULL;
 lv_obj_t * ui_guage_battery_soc = NULL;
@@ -32,13 +32,13 @@ void ui_screen_main_screen_init(void)
     lv_obj_clear_flag(ui_Logo, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_img_set_zoom(ui_Logo, 20);
 
-    ui_guage_soc = lv_arc_create(ui_screen_main);
-    lv_obj_set_width(ui_guage_soc, 150);
-    lv_obj_set_height(ui_guage_soc, 150);
-    lv_obj_set_x(ui_guage_soc, -234);
-    lv_obj_set_y(ui_guage_soc, -35);
-    lv_obj_set_align(ui_guage_soc, LV_ALIGN_CENTER);
-    lv_arc_set_value(ui_guage_soc, 50);
+    ui_guage_speed = lv_arc_create(ui_screen_main);
+    lv_obj_set_width(ui_guage_speed, 150);
+    lv_obj_set_height(ui_guage_speed, 150);
+    lv_obj_set_x(ui_guage_speed, -234);
+    lv_obj_set_y(ui_guage_speed, -35);
+    lv_obj_set_align(ui_guage_speed, LV_ALIGN_CENTER);
+    lv_arc_set_value(ui_guage_speed, 50);
 
     ui_guage_temp_motor = lv_bar_create(ui_screen_main);
     lv_bar_set_value(ui_guage_temp_motor, 25, LV_ANIM_OFF);
@@ -82,7 +82,7 @@ void ui_screen_main_screen_destroy(void)
     // NULL screen variables
     ui_screen_main = NULL;
     ui_Logo = NULL;
-    ui_guage_soc = NULL;
+    ui_guage_speed = NULL;
     ui_guage_temp_motor = NULL;
     ui_DNR = NULL;
     ui_guage_battery_soc = NULL;
