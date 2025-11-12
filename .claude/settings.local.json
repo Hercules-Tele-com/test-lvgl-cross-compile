@@ -29,7 +29,15 @@
       "Bash(where gdb)",
       "Bash(./leaf-can-dashboard.exe)",
       "Bash(taskkill:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(ip link:*)",
+      "Bash(journalctl:*)",
+      "Bash(sudo systemctl daemon-reload:*)",
+      "Bash(sudo systemctl enable:*)",
+      "Bash(sudo systemctl start:*)",
+      "Bash(systemctl status:*)",
+      "Bash(sudo systemctl restart:*)",
+      "Bash(ip:*)"
     ],
     "deny": [],
     "ask": []
