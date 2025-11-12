@@ -124,7 +124,7 @@ void DashboardUI::update(const CANReceiver& can) {
 
     // Convert scaled values
     uint8_t soc = soc_raw / 10;                       // % * 10 → %
-    float speed = speed_raw / 100.0f;                 // kph * 100 → kph
+    float speed = speed_raw / 10.0f;                   // kph (not scaled)
     float torque = torque_raw / 10.0f;                // Nm * 10 → Nm
     float voltage = pack_voltage / 10.0f;             // V * 10 → V
     float current = pack_current / 10.0f;             // A * 10 → A
@@ -148,7 +148,8 @@ void DashboardUI::updateTime(uint8_t h, uint8_t m, uint8_t s) {
 
 void DashboardUI::updateSpeedDisplay(float speed_kmh) {
     if (!speed_label) return;
-    lv_label_set_text_fmt(speed_label, "%.0f", speed_kmh);
+    int speed = (int)(speed_kmh + 0.5f);  // Round to nearest integer
+    lv_label_set_text_fmt(speed_label, "%d", speed);
 }
 
 void DashboardUI::updateBatterySOC(uint8_t soc_percent) {
@@ -165,11 +166,27 @@ void DashboardUI::updateGearDisplay(uint8_t gear) {
 }
 
 void DashboardUI::updateTorqueGauge(float torque_nm) {
-    if (!torque_gauge) return;
-    // Clamp to gauge range: -100 to 320 Nm
-    int torque = (int)torque_nm;
-    torque = std::max(-100, std::min(torque, 320));
-    lv_arc_set_value(torque_gauge, torque);
+    // Handle positive torque (0 to 320 Nm) on ui_TRQgauge
+    if (torque_gauge) {
+        if (torque_nm >= 0) {
+            int torque = (int)torque_nm;
+            torque = std::min(torque, 320);
+            lv_arc_set_value(torque_gauge, torque);
+        } else {
+            lv_arc_set_value(torque_gauge, 0);
+        }
+    }
+
+    // Handle negative/regen torque (-100 to 0 Nm) on ui_TRQgauge1
+    if (torque_gauge_regen) {
+        if (torque_nm < 0) {
+            int regen = (int)(-torque_nm);  // Convert to positive value
+            regen = std::min(regen, 100);
+            lv_arc_set_value(torque_gauge_regen, regen);
+        } else {
+            lv_arc_set_value(torque_gauge_regen, 0);
+        }
+    }
 }
 
 void DashboardUI::updatePowerGauge(float power_kw) {
@@ -186,7 +203,7 @@ void DashboardUI::updateBatteryTemp(int8_t temp_c) {
         lv_bar_set_value(battery_temp_bar, v, LV_ANIM_ON);
     }
     if (battery_temp_value) {
-        lv_label_set_text_fmt(battery_temp_value, "%d°C", (int)temp_c);
+        lv_label_set_text_fmt(battery_temp_value, "%dC", (int)temp_c);
     }
 }
 
@@ -196,7 +213,7 @@ void DashboardUI::updateMotorTemp(uint8_t temp_c) {
         lv_bar_set_value(motor_temp_bar, v, LV_ANIM_ON);
     }
     if (motor_temp_value) {
-        lv_label_set_text_fmt(motor_temp_value, "%d°C", (int)temp_c);
+        lv_label_set_text_fmt(motor_temp_value, "%dC", (int)temp_c);
     }
 }
 
@@ -206,6 +223,6 @@ void DashboardUI::updateInverterTemp(uint8_t temp_c) {
         lv_bar_set_value(inverter_temp_bar, v, LV_ANIM_ON);
     }
     if (inverter_temp_value) {
-        lv_label_set_text_fmt(inverter_temp_value, "%d°C", (int)temp_c);
+        lv_label_set_text_fmt(inverter_temp_value, "%dC", (int)temp_c);
     }
 }
