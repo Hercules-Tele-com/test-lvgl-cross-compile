@@ -20,6 +20,7 @@ extern lv_obj_t * ui_Logo;
 extern lv_obj_t * ui_Time;
 extern lv_obj_t * ui_DNRlabel;
 extern lv_obj_t * ui_TRQgauge;
+extern lv_obj_t * ui_TRQgauge1;
 extern lv_obj_t * ui_SPEEDlabel;
 extern lv_obj_t * ui_BATPOWERgauge;
 extern lv_obj_t * ui_BATSOClabel;

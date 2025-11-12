@@ -35,14 +35,16 @@ set(UI_SCREENS_DIR    ${UI_DIR}/screens)
 set(UI_COMPONENTS_DIR ${UI_DIR}/components)
 set(UI_ASSETS_DIR     ${UI_DIR}/assets)   # legacy/alt location
 set(UI_IMAGES_DIR     ${UI_DIR}/images)   # actual location for exported images
+set(UI_FONTS_DIR      ${UI_DIR}/fonts)    # fonts directory
 set(PLAT_DIR ${SRC_DIR}/platform)
 set(SHARED_DIR ${SRC_DIR}/shared)
 
-# SquareLine generated C files (auto-pick what exists, including images/assets)
+# SquareLine generated C files (auto-pick what exists, including images/assets/fonts)
 file(GLOB UI_SCREENS     CONFIGURE_DEPENDS "${UI_SCREENS_DIR}/*.c")
 file(GLOB UI_COMPONENTS  CONFIGURE_DEPENDS "${UI_COMPONENTS_DIR}/*.c")
 file(GLOB UI_ASSETS_C    CONFIGURE_DEPENDS "${UI_ASSETS_DIR}/*.c")
 file(GLOB UI_IMAGES_C    CONFIGURE_DEPENDS "${UI_IMAGES_DIR}/*.c")
+file(GLOB UI_FONTS_C     CONFIGURE_DEPENDS "${UI_FONTS_DIR}/*.c")
 
 set(SOURCES
     ${SRC_DIR}/main.cpp
@@ -58,6 +60,7 @@ set(SOURCES
     ${UI_SCREENS}
     ${UI_ASSETS_C}
     ${UI_IMAGES_C}
+    ${UI_FONTS_C}
 )
 
 if(PLATFORM STREQUAL "windows")
@@ -81,6 +84,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${UI_SCREENS_DIR}
     ${UI_ASSETS_DIR}
     ${UI_IMAGES_DIR}
+    ${UI_FONTS_DIR}
     ${PLAT_DIR}
     ${PLAT_DIR}/windows
     ${PLAT_DIR}/linux

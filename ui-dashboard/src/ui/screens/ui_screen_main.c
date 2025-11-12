@@ -5,7 +5,27 @@
 
 #include "../ui.h"
 
-
+lv_obj_t * ui_SpeedLabel;
+lv_obj_t * ui_screen_main = NULL;
+lv_obj_t * ui_Container2 = NULL;
+lv_obj_t * ui_Container1 = NULL;
+lv_obj_t * ui_Logo = NULL;
+lv_obj_t * ui_Time = NULL;
+lv_obj_t * ui_DNRlabel = NULL;
+lv_obj_t * ui_TRQgauge = NULL;
+lv_obj_t * ui_TRQgauge1 = NULL;
+lv_obj_t * ui_SPEEDlabel = NULL;
+lv_obj_t * ui_BATPOWERgauge = NULL;
+lv_obj_t * ui_BATSOClabel = NULL;
+lv_obj_t * ui_TEMPbar = NULL;
+lv_obj_t * ui_TEMPvalue = NULL;
+lv_obj_t * ui_TEMPname = NULL;
+lv_obj_t * ui_TEMPbar1 = NULL;
+lv_obj_t * ui_TEMPvalue1 = NULL;
+lv_obj_t * ui_TEMPname1 = NULL;
+lv_obj_t * ui_TEMPbar2 = NULL;
+lv_obj_t * ui_TEMPvalue2 = NULL;
+lv_obj_t * ui_TEMPname2 = NULL;
 // event funtions
 
 // build funtions
@@ -70,7 +90,7 @@ void ui_screen_main_screen_init(void)
     lv_obj_set_height(ui_DNRlabel, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(ui_DNRlabel, LV_ALIGN_CENTER);
     lv_label_set_text(ui_DNRlabel, "D");
-    lv_obj_set_style_text_font(ui_DNRlabel, &ui_font_Speed, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_DNRlabel, &ui_font_DNR_Large, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_TRQgauge = lv_arc_create(ui_screen_main);
     lv_obj_set_width(ui_TRQgauge, 200);
@@ -78,7 +98,27 @@ void ui_screen_main_screen_init(void)
     lv_obj_set_x(ui_TRQgauge, -280);
     lv_obj_set_y(ui_TRQgauge, 0);
     lv_obj_set_align(ui_TRQgauge, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_TRQgauge, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE |
+                      LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE);     /// Flags
+    lv_arc_set_range(ui_TRQgauge, 0, 350);
     lv_arc_set_value(ui_TRQgauge, 50);
+    lv_arc_set_bg_angles(ui_TRQgauge, 270, 60);
+
+    ui_TRQgauge1 = lv_arc_create(ui_screen_main);
+    lv_obj_set_width(ui_TRQgauge1, 200);
+    lv_obj_set_height(ui_TRQgauge1, 200);
+    lv_obj_set_x(ui_TRQgauge1, -280);
+    lv_obj_set_y(ui_TRQgauge1, 0);
+    lv_obj_set_align(ui_TRQgauge1, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_TRQgauge1, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE |
+                      LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE | LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC |
+                      LV_OBJ_FLAG_SCROLL_MOMENTUM | LV_OBJ_FLAG_SCROLL_CHAIN);     /// Flags
+    lv_arc_set_value(ui_TRQgauge1, 50);
+    lv_arc_set_bg_angles(ui_TRQgauge1, 120, 270);
+    lv_arc_set_mode(ui_TRQgauge1, LV_ARC_MODE_REVERSE);
+
+    lv_obj_set_style_arc_color(ui_TRQgauge1, lv_color_hex(0x40FF59), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+    lv_obj_set_style_arc_opa(ui_TRQgauge1, 255, LV_PART_INDICATOR | LV_STATE_DEFAULT);
 
     ui_SPEEDlabel = lv_label_create(ui_screen_main);
     lv_obj_set_width(ui_SPEEDlabel, LV_SIZE_CONTENT);   /// 1
@@ -96,6 +136,8 @@ void ui_screen_main_screen_init(void)
     lv_obj_set_x(ui_BATPOWERgauge, 280);
     lv_obj_set_y(ui_BATPOWERgauge, 0);
     lv_obj_set_align(ui_BATPOWERgauge, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_BATPOWERgauge, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_CLICK_FOCUSABLE |
+                      LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SNAPPABLE);     /// Flags
     lv_arc_set_range(ui_BATPOWERgauge, -100, 100);
     lv_arc_set_value(ui_BATPOWERgauge, 50);
     lv_arc_set_mode(ui_BATPOWERgauge, LV_ARC_MODE_SYMMETRICAL);
@@ -225,6 +267,7 @@ void ui_screen_main_screen_destroy(void)
     ui_Time = NULL;
     ui_DNRlabel = NULL;
     ui_TRQgauge = NULL;
+    ui_TRQgauge1 = NULL;
     ui_SpeedLabel = NULL;
     ui_SPEEDlabel = NULL;
     ui_BATPOWERgauge = NULL;
