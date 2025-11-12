@@ -1,0 +1,16 @@
+{
+  "codename": "Heading",
+  "ttf_path": "/assets/AlbertSans-Black.ttf",
+  "bin_path": "/assets\\ui_font_Heading.bin",
+  "c_path": "/assets\\ui_font_Heading.c",
+  "cfg_path": "/assets\\ui_font_Heading.fcfg",
+  "size": 32,
+  "bpp": 1,
+  "letters": 0,
+  "ranges": [
+    "0x20-0x7f"
+  ],
+  "symbols": "",
+  "customparams": "--no-compress --no-prefilter",
+  "uploaded": false
+}
