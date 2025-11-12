@@ -1,0 +1,2 @@
+# Ignore any directory named "backup" and all files beneath it
+backup/

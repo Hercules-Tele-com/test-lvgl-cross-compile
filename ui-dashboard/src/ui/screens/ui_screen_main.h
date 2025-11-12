@@ -14,13 +14,27 @@ extern "C" {
 extern void ui_screen_main_screen_init(void);
 extern void ui_screen_main_screen_destroy(void);
 extern lv_obj_t * ui_screen_main;
+extern lv_obj_t * ui_Container2;
+extern lv_obj_t * ui_Container1;
 extern lv_obj_t * ui_Logo;
-extern lv_obj_t * ui_guage_speed;
-extern lv_obj_t * ui_guage_temp_motor;
-extern lv_obj_t * ui_DNR;
-extern lv_obj_t * ui_guage_battery_soc;
-extern lv_obj_t * ui_guage_temp_inverter;
+extern lv_obj_t * ui_Time;
+extern lv_obj_t * ui_DNRlabel;
+extern lv_obj_t * ui_TRQgauge;
+extern lv_obj_t * ui_TRQgauge1;
+extern lv_obj_t * ui_SPEEDlabel;
+extern lv_obj_t * ui_BATPOWERgauge;
+extern lv_obj_t * ui_BATSOClabel;
+extern lv_obj_t * ui_TEMPbar;
+extern lv_obj_t * ui_TEMPvalue;
+extern lv_obj_t * ui_TEMPname;
+extern lv_obj_t * ui_TEMPbar1;
+extern lv_obj_t * ui_TEMPvalue1;
+extern lv_obj_t * ui_TEMPname1;
+extern lv_obj_t * ui_TEMPbar2;
+extern lv_obj_t * ui_TEMPvalue2;
+extern lv_obj_t * ui_TEMPname2;
 // CUSTOM VARIABLES
+extern lv_obj_t * ui_SpeedLabel;
 
 #ifdef __cplusplus
 } /*extern "C"*/

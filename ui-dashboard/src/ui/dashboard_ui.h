@@ -17,29 +17,38 @@ public:
 
 private:
     // Helpers
-    void updateSpeedGauge(float speed_kmh);
+    void updateSpeedDisplay(float speed_kmh);
     void updateBatterySOC(uint8_t soc_percent);
-    void updateMotorRPM(int16_t rpm);
-    void updateTemperatures(int16_t motor_temp_c, int16_t inverter_temp_c);
+    void updateGearDisplay(uint8_t gear);
+    void updateTorqueGauge(float torque_nm);
+    void updatePowerGauge(float power_kw);
+    void updateBatteryTemp(int8_t temp_c);
+    void updateMotorTemp(uint8_t temp_c);
+    void updateInverterTemp(uint8_t temp_c);
 
-    // Bound widgets
-    lv_obj_t* speed_arc = nullptr;          // ui_guage_speed
-    lv_obj_t* soc_arc_primary = nullptr;    // ui_guage_battery_soc
-    lv_obj_t* motor_temp_bar = nullptr;     // ui_guage_temp_motor
-    lv_obj_t* inverter_temp_bar = nullptr;  // ui_guage_temp_inverter
+    // New SquareLine UI components from ui_screen_main
+    lv_obj_t* time_label = nullptr;           // ui_Time
+    lv_obj_t* gear_label = nullptr;           // ui_DNRlabel
+    lv_obj_t* torque_gauge = nullptr;         // ui_TRQgauge (Arc) - positive torque
+    lv_obj_t* torque_gauge_regen = nullptr;   // ui_TRQgauge1 (Arc) - regen/negative torque
+    lv_obj_t* speed_label = nullptr;          // ui_SPEEDlabel
+    lv_obj_t* power_gauge = nullptr;          // ui_BATPOWERgauge
+    lv_obj_t* soc_label = nullptr;            // ui_BATSOClabel
 
-    // Centered labels (created dynamically)
-    lv_obj_t* speed_value_label = nullptr;
-    lv_obj_t* soc_value_label   = nullptr;
+    // Battery temperature (TEMPbar, TEMPvalue, TEMPname)
+    lv_obj_t* battery_temp_bar = nullptr;     // ui_TEMPbar
+    lv_obj_t* battery_temp_value = nullptr;   // ui_TEMPvalue
+    lv_obj_t* battery_temp_name = nullptr;    // ui_TEMPname
 
-    // Optional labels (safe if null)
-    lv_obj_t* soc_bar = nullptr;
-    lv_obj_t* soc_label = nullptr;
-    lv_obj_t* rpm_label = nullptr;
-    lv_obj_t* motor_temp_label = nullptr;
-    lv_obj_t* inverter_temp_label = nullptr;
-    lv_obj_t* status_label = nullptr;
-    lv_obj_t* time_label = nullptr;
+    // Motor temperature (TEMPbar1, TEMPvalue1, TEMPname1)
+    lv_obj_t* motor_temp_bar = nullptr;       // ui_TEMPbar1
+    lv_obj_t* motor_temp_value = nullptr;     // ui_TEMPvalue1
+    lv_obj_t* motor_temp_name = nullptr;      // ui_TEMPname1
+
+    // Inverter temperature (TEMPbar2, TEMPvalue2, TEMPname2)
+    lv_obj_t* inverter_temp_bar = nullptr;    // ui_TEMPbar2
+    lv_obj_t* inverter_temp_value = nullptr;  // ui_TEMPvalue2
+    lv_obj_t* inverter_temp_name = nullptr;   // ui_TEMPname2
 };
 
 #endif // DASHBOARD_UI_H

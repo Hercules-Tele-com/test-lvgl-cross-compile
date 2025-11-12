@@ -1,0 +1,16 @@
+{
+  "codename": "Speed",
+  "ttf_path": "/assets/AlbertSans-Black.ttf",
+  "bin_path": "/assets\\ui_font_Speed.bin",
+  "c_path": "/assets\\ui_font_Speed.c",
+  "cfg_path": "/assets\\ui_font_Speed.fcfg",
+  "size": 60,
+  "bpp": 1,
+  "letters": 0,
+  "ranges": [
+    "0x20-0x7f"
+  ],
+  "symbols": "",
+  "customparams": "--no-compress --no-prefilter",
+  "uploaded": false
+}
