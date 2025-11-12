@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#include "lvgl.h"
+#include "lvgl/lvgl.h"
 
 #include "ui_helpers.h"
 #include "ui_events.h"
@@ -29,7 +29,14 @@ extern "C" {
 extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
+LV_IMG_DECLARE(ui_img_emboo_logowhite_png);    // assets/EMBOO_LogoWhite.png
 LV_IMG_DECLARE(ui_img_emboo_logosunsetorange_png);    // assets/EMBOO_LogoSunsetOrange.png
+
+// FONTS
+LV_FONT_DECLARE(ui_font_Speed);
+LV_FONT_DECLARE(ui_font_Heading);
+LV_FONT_DECLARE(ui_font_Value_Small);
+LV_FONT_DECLARE(ui_font_Label_Small);
 
 // UI INIT
 void ui_init(void);

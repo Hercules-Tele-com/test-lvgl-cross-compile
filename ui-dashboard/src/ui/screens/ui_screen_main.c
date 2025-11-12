@@ -5,13 +5,7 @@
 
 #include "../ui.h"
 
-lv_obj_t * ui_screen_main = NULL;
-lv_obj_t * ui_Logo = NULL;
-lv_obj_t * ui_guage_speed = NULL;
-lv_obj_t * ui_guage_temp_motor = NULL;
-lv_obj_t * ui_DNR = NULL;
-lv_obj_t * ui_guage_battery_soc = NULL;
-lv_obj_t * ui_guage_temp_inverter = NULL;
+
 // event funtions
 
 // build funtions
@@ -21,57 +15,201 @@ void ui_screen_main_screen_init(void)
     ui_screen_main = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_screen_main, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
+    lv_obj_set_style_bg_color(ui_screen_main, lv_color_hex(0x000000), LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_screen_main, 255, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
+
+    ui_Container2 = lv_obj_create(ui_screen_main);
+    lv_obj_remove_style_all(ui_Container2);
+    lv_obj_set_width(ui_Container2, 800);
+    lv_obj_set_height(ui_Container2, 480);
+    lv_obj_set_x(ui_Container2, 0);
+    lv_obj_set_y(ui_Container2, 1);
+    lv_obj_set_align(ui_Container2, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_Container2, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_bg_color(ui_Container2, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Container2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Container1 = lv_obj_create(ui_screen_main);
+    lv_obj_remove_style_all(ui_Container1);
+    lv_obj_set_width(ui_Container1, 800);
+    lv_obj_set_height(ui_Container1, 100);
+    lv_obj_set_x(ui_Container1, 0);
+    lv_obj_set_y(ui_Container1, -190);
+    lv_obj_set_align(ui_Container1, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_Container1, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_bg_color(ui_Container1, lv_color_hex(0xFF7300), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_Container1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_color(ui_Container1, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(ui_Container1, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     ui_Logo = lv_img_create(ui_screen_main);
-    lv_img_set_src(ui_Logo, &ui_img_emboo_logosunsetorange_png);
+    lv_img_set_src(ui_Logo, &ui_img_emboo_logowhite_png);
     lv_obj_set_width(ui_Logo, LV_SIZE_CONTENT);   /// 100
     lv_obj_set_height(ui_Logo, LV_SIZE_CONTENT);    /// 100
     lv_obj_set_x(ui_Logo, 20);
-    lv_obj_set_y(ui_Logo, -128);
+    lv_obj_set_y(ui_Logo, -200);
     lv_obj_set_align(ui_Logo, LV_ALIGN_CENTER);
     lv_obj_add_flag(ui_Logo, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
     lv_obj_clear_flag(ui_Logo, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_img_set_zoom(ui_Logo, 20);
 
-    ui_guage_speed = lv_arc_create(ui_screen_main);
-    lv_obj_set_width(ui_guage_speed, 150);
-    lv_obj_set_height(ui_guage_speed, 150);
-    lv_obj_set_x(ui_guage_speed, -234);
-    lv_obj_set_y(ui_guage_speed, -35);
-    lv_obj_set_align(ui_guage_speed, LV_ALIGN_CENTER);
-    lv_arc_set_value(ui_guage_speed, 50);
+    ui_Time = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_Time, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Time, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Time, 297);
+    lv_obj_set_y(ui_Time, -199);
+    lv_obj_set_align(ui_Time, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Time, "12:00");
+    lv_label_set_recolor(ui_Time, "true");
+    lv_obj_set_style_text_color(ui_Time, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_Time, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Time, &ui_font_Heading, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_guage_temp_motor = lv_bar_create(ui_screen_main);
-    lv_bar_set_value(ui_guage_temp_motor, 25, LV_ANIM_OFF);
-    lv_bar_set_start_value(ui_guage_temp_motor, 0, LV_ANIM_OFF);
-    lv_obj_set_width(ui_guage_temp_motor, 150);
-    lv_obj_set_height(ui_guage_temp_motor, 10);
-    lv_obj_set_x(ui_guage_temp_motor, 14);
-    lv_obj_set_y(ui_guage_temp_motor, 132);
-    lv_obj_set_align(ui_guage_temp_motor, LV_ALIGN_CENTER);
+    ui_DNRlabel = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_DNRlabel, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_DNRlabel, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_DNRlabel, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_DNRlabel, "D");
+    lv_obj_set_style_text_font(ui_DNRlabel, &ui_font_Speed, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_DNR = lv_label_create(ui_screen_main);
-    lv_obj_set_width(ui_DNR, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_DNR, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_DNR, 14);
-    lv_obj_set_y(ui_DNR, -13);
-    lv_obj_set_align(ui_DNR, LV_ALIGN_CENTER);
+    ui_TRQgauge = lv_arc_create(ui_screen_main);
+    lv_obj_set_width(ui_TRQgauge, 200);
+    lv_obj_set_height(ui_TRQgauge, 200);
+    lv_obj_set_x(ui_TRQgauge, -280);
+    lv_obj_set_y(ui_TRQgauge, 0);
+    lv_obj_set_align(ui_TRQgauge, LV_ALIGN_CENTER);
+    lv_arc_set_value(ui_TRQgauge, 50);
 
-    ui_guage_battery_soc = lv_arc_create(ui_screen_main);
-    lv_obj_set_width(ui_guage_battery_soc, 150);
-    lv_obj_set_height(ui_guage_battery_soc, 150);
-    lv_obj_set_x(ui_guage_battery_soc, 282);
-    lv_obj_set_y(ui_guage_battery_soc, -42);
-    lv_obj_set_align(ui_guage_battery_soc, LV_ALIGN_CENTER);
-    lv_arc_set_value(ui_guage_battery_soc, 50);
+    ui_SPEEDlabel = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_SPEEDlabel, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_SPEEDlabel, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_SPEEDlabel, -280);
+    lv_obj_set_y(ui_SPEEDlabel, 0);
+    lv_obj_set_align(ui_SPEEDlabel, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_SPEEDlabel, "60");
+    lv_label_set_recolor(ui_SPEEDlabel, "true");
+    lv_obj_set_style_text_font(ui_SPEEDlabel, &ui_font_Speed, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_guage_temp_inverter = lv_bar_create(ui_screen_main);
-    lv_bar_set_value(ui_guage_temp_inverter, 25, LV_ANIM_OFF);
-    lv_bar_set_start_value(ui_guage_temp_inverter, 0, LV_ANIM_OFF);
-    lv_obj_set_width(ui_guage_temp_inverter, 150);
-    lv_obj_set_height(ui_guage_temp_inverter, 10);
-    lv_obj_set_x(ui_guage_temp_inverter, 15);
-    lv_obj_set_y(ui_guage_temp_inverter, 163);
-    lv_obj_set_align(ui_guage_temp_inverter, LV_ALIGN_CENTER);
+    ui_BATPOWERgauge = lv_arc_create(ui_screen_main);
+    lv_obj_set_width(ui_BATPOWERgauge, 200);
+    lv_obj_set_height(ui_BATPOWERgauge, 200);
+    lv_obj_set_x(ui_BATPOWERgauge, 280);
+    lv_obj_set_y(ui_BATPOWERgauge, 0);
+    lv_obj_set_align(ui_BATPOWERgauge, LV_ALIGN_CENTER);
+    lv_arc_set_range(ui_BATPOWERgauge, -100, 100);
+    lv_arc_set_value(ui_BATPOWERgauge, 50);
+    lv_arc_set_mode(ui_BATPOWERgauge, LV_ARC_MODE_SYMMETRICAL);
+
+    ui_BATSOClabel = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_BATSOClabel, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_BATSOClabel, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_BATSOClabel, 280);
+    lv_obj_set_y(ui_BATSOClabel, 0);
+    lv_obj_set_align(ui_BATSOClabel, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_BATSOClabel, "60");
+    lv_label_set_recolor(ui_BATSOClabel, "true");
+    lv_obj_set_style_text_font(ui_BATSOClabel, &ui_font_Speed, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPbar = lv_bar_create(ui_screen_main);
+    lv_bar_set_value(ui_TEMPbar, 25, LV_ANIM_OFF);
+    lv_bar_set_start_value(ui_TEMPbar, 0, LV_ANIM_OFF);
+    lv_obj_set_width(ui_TEMPbar, 480);
+    lv_obj_set_height(ui_TEMPbar, 10);
+    lv_obj_set_x(ui_TEMPbar, 25);
+    lv_obj_set_y(ui_TEMPbar, 203);
+    lv_obj_set_align(ui_TEMPbar, LV_ALIGN_CENTER);
+
+    ui_TEMPvalue = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPvalue, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPvalue, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPvalue, 317);
+    lv_obj_set_y(ui_TEMPvalue, 198);
+    lv_obj_set_align(ui_TEMPvalue, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPvalue, "50 C");
+    lv_label_set_recolor(ui_TEMPvalue, "true");
+    lv_obj_set_style_text_color(ui_TEMPvalue, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPvalue, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPvalue, &ui_font_Value_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPname = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPname, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPname, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPname, -289);
+    lv_obj_set_y(ui_TEMPname, 201);
+    lv_obj_set_align(ui_TEMPname, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPname, "Inverter");
+    lv_label_set_recolor(ui_TEMPname, "true");
+    lv_obj_set_style_text_color(ui_TEMPname, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPname, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPname, &ui_font_Label_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPbar1 = lv_bar_create(ui_screen_main);
+    lv_bar_set_value(ui_TEMPbar1, 25, LV_ANIM_OFF);
+    lv_bar_set_start_value(ui_TEMPbar1, 0, LV_ANIM_OFF);
+    lv_obj_set_width(ui_TEMPbar1, 480);
+    lv_obj_set_height(ui_TEMPbar1, 10);
+    lv_obj_set_x(ui_TEMPbar1, 26);
+    lv_obj_set_y(ui_TEMPbar1, 176);
+    lv_obj_set_align(ui_TEMPbar1, LV_ALIGN_CENTER);
+
+    ui_TEMPvalue1 = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPvalue1, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPvalue1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPvalue1, 316);
+    lv_obj_set_y(ui_TEMPvalue1, 175);
+    lv_obj_set_align(ui_TEMPvalue1, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPvalue1, "50 C");
+    lv_label_set_recolor(ui_TEMPvalue1, "true");
+    lv_obj_set_style_text_color(ui_TEMPvalue1, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPvalue1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPvalue1, &ui_font_Value_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPname1 = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPname1, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPname1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPname1, -288);
+    lv_obj_set_y(ui_TEMPname1, 176);
+    lv_obj_set_align(ui_TEMPname1, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPname1, "Motor");
+    lv_label_set_recolor(ui_TEMPname1, "true");
+    lv_obj_set_style_text_color(ui_TEMPname1, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPname1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPname1, &ui_font_Label_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPbar2 = lv_bar_create(ui_screen_main);
+    lv_bar_set_value(ui_TEMPbar2, 25, LV_ANIM_OFF);
+    lv_bar_set_start_value(ui_TEMPbar2, 0, LV_ANIM_OFF);
+    lv_obj_set_width(ui_TEMPbar2, 480);
+    lv_obj_set_height(ui_TEMPbar2, 10);
+    lv_obj_set_x(ui_TEMPbar2, 27);
+    lv_obj_set_y(ui_TEMPbar2, 145);
+    lv_obj_set_align(ui_TEMPbar2, LV_ALIGN_CENTER);
+
+    ui_TEMPvalue2 = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPvalue2, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPvalue2, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPvalue2, 314);
+    lv_obj_set_y(ui_TEMPvalue2, 146);
+    lv_obj_set_align(ui_TEMPvalue2, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPvalue2, "50 C");
+    lv_label_set_recolor(ui_TEMPvalue2, "true");
+    lv_obj_set_style_text_color(ui_TEMPvalue2, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPvalue2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPvalue2, &ui_font_Value_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_TEMPname2 = lv_label_create(ui_screen_main);
+    lv_obj_set_width(ui_TEMPname2, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_TEMPname2, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_TEMPname2, -289);
+    lv_obj_set_y(ui_TEMPname2, 146);
+    lv_obj_set_align(ui_TEMPname2, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_TEMPname2, "Battery");
+    lv_label_set_recolor(ui_TEMPname2, "true");
+    lv_obj_set_style_text_color(ui_TEMPname2, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_TEMPname2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_TEMPname2, &ui_font_Label_Small, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_SpeedLabel = ui_SPEEDlabel;
 
 }
 
@@ -81,11 +219,24 @@ void ui_screen_main_screen_destroy(void)
 
     // NULL screen variables
     ui_screen_main = NULL;
+    ui_Container2 = NULL;
+    ui_Container1 = NULL;
     ui_Logo = NULL;
-    ui_guage_speed = NULL;
-    ui_guage_temp_motor = NULL;
-    ui_DNR = NULL;
-    ui_guage_battery_soc = NULL;
-    ui_guage_temp_inverter = NULL;
+    ui_Time = NULL;
+    ui_DNRlabel = NULL;
+    ui_TRQgauge = NULL;
+    ui_SpeedLabel = NULL;
+    ui_SPEEDlabel = NULL;
+    ui_BATPOWERgauge = NULL;
+    ui_BATSOClabel = NULL;
+    ui_TEMPbar = NULL;
+    ui_TEMPvalue = NULL;
+    ui_TEMPname = NULL;
+    ui_TEMPbar1 = NULL;
+    ui_TEMPvalue1 = NULL;
+    ui_TEMPname1 = NULL;
+    ui_TEMPbar2 = NULL;
+    ui_TEMPvalue2 = NULL;
+    ui_TEMPname2 = NULL;
 
 }
