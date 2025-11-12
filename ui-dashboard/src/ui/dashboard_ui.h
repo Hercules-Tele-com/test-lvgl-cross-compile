@@ -29,7 +29,8 @@ private:
     // New SquareLine UI components from ui_screen_main
     lv_obj_t* time_label = nullptr;           // ui_Time
     lv_obj_t* gear_label = nullptr;           // ui_DNRlabel
-    lv_obj_t* torque_gauge = nullptr;         // ui_TRQgauge (Arc)
+    lv_obj_t* torque_gauge = nullptr;         // ui_TRQgauge (Arc) - positive torque
+    lv_obj_t* torque_gauge_regen = nullptr;   // ui_TRQgauge1 (Arc) - regen/negative torque
     lv_obj_t* speed_label = nullptr;          // ui_SPEEDlabel
     lv_obj_t* power_gauge = nullptr;          // ui_BATPOWERgauge
     lv_obj_t* soc_label = nullptr;            // ui_BATSOClabel

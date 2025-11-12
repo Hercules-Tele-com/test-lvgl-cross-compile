@@ -20,6 +20,9 @@ void DashboardUI::init() {
     torque_gauge = ui_TRQgauge;
     printf("[UI] torque_gauge bound: %p\n", (void*)torque_gauge);
 
+    torque_gauge_regen = ui_TRQgauge1;
+    printf("[UI] torque_gauge_regen bound: %p\n", (void*)torque_gauge_regen);
+
     speed_label = ui_SPEEDlabel;
     printf("[UI] speed_label bound: %p\n", (void*)speed_label);
 
@@ -61,14 +64,24 @@ void DashboardUI::init() {
 
     printf("[UI] All components bound successfully\n");
 
-    // Configure torque gauge (Arc: -100 to 320 Nm as per SquareLine manual)
+    // Configure torque gauge (Arc: 0 to 320 Nm for positive torque)
     if (torque_gauge) {
         printf("[UI] Configuring torque gauge...\n");
-        lv_arc_set_range(torque_gauge, -100, 320);
+        lv_arc_set_range(torque_gauge, 0, 320);
         lv_arc_set_value(torque_gauge, 0);
-        printf("[UI] Torque gauge configured (range: -100 to 320 Nm)\n");
+        printf("[UI] Torque gauge configured (range: 0 to 320 Nm)\n");
     } else {
         printf("[UI] WARNING: torque_gauge is NULL!\n");
+    }
+
+    // Configure regen torque gauge (Arc: 0 to 100 Nm for regen, reverse mode)
+    if (torque_gauge_regen) {
+        printf("[UI] Configuring regen torque gauge...\n");
+        lv_arc_set_range(torque_gauge_regen, 0, 100);
+        lv_arc_set_value(torque_gauge_regen, 0);
+        printf("[UI] Regen torque gauge configured (range: 0 to 100 Nm, reverse mode)\n");
+    } else {
+        printf("[UI] WARNING: torque_gauge_regen is NULL!\n");
     }
 
     // Configure temperature bars
