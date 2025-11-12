@@ -9,6 +9,7 @@ class CANReceiver;
 struct MockCANData {
     uint32_t last_update_ms;
     uint32_t update_counter;
+    void* internal_data;  // MockCANDataInternal*
 };
 
 // Initialize mock CAN

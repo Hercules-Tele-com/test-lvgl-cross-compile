@@ -2,11 +2,29 @@
 #include "can_receiver.h"
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <chrono>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
 
 using namespace std::chrono;
+
+struct CANLogEntry {
+    double timestamp;
+    uint32_t can_id;
+    uint8_t dlc;
+    uint8_t data[8];
+};
+
+struct MockCANDataInternal {
+    std::vector<CANLogEntry> log_entries;
+    size_t current_index;
+    steady_clock::time_point start_time;
+    double playback_start_timestamp;
+    bool loop_enabled;
+    uint32_t loop_count;
+};
 
 static uint32_t get_millis() {
     static auto start = steady_clock::now();
@@ -14,120 +32,168 @@ static uint32_t get_millis() {
     return duration_cast<milliseconds>(now - start).count();
 }
 
+static bool parse_can_log_line(const std::string& line, CANLogEntry& entry) {
+    // Format: Timestamp(s) CAN_ID DLC Data
+    // Example: 0.000000	351	8	0B B8 00 00 00 00 00 00
+
+    std::istringstream iss(line);
+    std::string timestamp_str, can_id_str, dlc_str;
+
+    // Skip comment lines and header
+    if (line.empty() || line[0] == '#') {
+        return false;
+    }
+
+    // Parse timestamp
+    if (!(iss >> timestamp_str)) return false;
+    entry.timestamp = std::stod(timestamp_str);
+
+    // Parse CAN ID (hex)
+    if (!(iss >> std::hex >> entry.can_id)) return false;
+
+    // Parse DLC
+    if (!(iss >> std::dec >> dlc_str)) return false;
+    entry.dlc = std::stoul(dlc_str);
+
+    if (entry.dlc > 8) return false;
+
+    // Parse data bytes (hex)
+    for (uint8_t i = 0; i < entry.dlc; ++i) {
+        uint32_t byte_val;
+        if (!(iss >> std::hex >> byte_val)) return false;
+        entry.data[i] = (uint8_t)byte_val;
+    }
+
+    return true;
+}
+
 MockCANData* mock_can_init() {
+    auto* internal = new MockCANDataInternal();
+    internal->current_index = 0;
+    internal->start_time = steady_clock::now();
+    internal->playback_start_timestamp = 0.0;
+    internal->loop_enabled = true;
+    internal->loop_count = 0;
+
+    // Try multiple possible locations for the log file
+    std::vector<std::string> possible_paths = {
+        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\can_log_demo.txt",
+        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\test-lvgl-cross-compile\\ui-dashboard\\src\\platform\\windows\\can_log_demo.txt",
+        "can_log_demo.txt",
+        "../can_log_demo.txt",
+        "../../can_log_demo.txt",
+        "../../../can_log_demo.txt",
+        "../../../../can_log_demo.txt",
+        "../../../../../can_log_demo.txt"
+    };
+
+    std::ifstream log_file;
+    std::string used_path;
+
+    for (const auto& path : possible_paths) {
+        log_file.open(path);
+        if (log_file.is_open()) {
+            used_path = path;
+            break;
+        }
+    }
+
+    if (!log_file.is_open()) {
+        std::cerr << "[MockCAN] ERROR: Could not open can_log_demo.txt from any location" << std::endl;
+        std::cerr << "[MockCAN] Tried paths:" << std::endl;
+        for (const auto& path : possible_paths) {
+            std::cerr << "  - " << path << std::endl;
+        }
+        delete internal;
+        return nullptr;
+    }
+
+    std::cout << "[MockCAN] Loading CAN log from: " << used_path << std::endl;
+
+    // Read all log entries
+    std::string line;
+    int line_num = 0;
+    int parsed_count = 0;
+
+    while (std::getline(log_file, line)) {
+        line_num++;
+        CANLogEntry entry;
+        if (parse_can_log_line(line, entry)) {
+            internal->log_entries.push_back(entry);
+            parsed_count++;
+        }
+    }
+
+    log_file.close();
+
+    if (internal->log_entries.empty()) {
+        std::cerr << "[MockCAN] ERROR: No valid CAN messages found in log file" << std::endl;
+        delete internal;
+        return nullptr;
+    }
+
+    // Set the playback start timestamp to the first entry's timestamp
+    internal->playback_start_timestamp = internal->log_entries[0].timestamp;
+
+    std::cout << "[MockCAN] Loaded " << parsed_count << " CAN messages from "
+              << line_num << " lines" << std::endl;
+    std::cout << "[MockCAN] Time range: " << internal->log_entries[0].timestamp
+              << "s to " << internal->log_entries.back().timestamp << "s" << std::endl;
+    std::cout << "[MockCAN] Playback will loop continuously" << std::endl;
+
     MockCANData* data = new MockCANData();
     data->last_update_ms = get_millis();
     data->update_counter = 0;
-    std::cout << "[MockCAN] Initialized - generating simulated CAN data" << std::endl;
+    data->internal_data = internal;
+
     return data;
 }
 
 void mock_can_update(MockCANData* data, CANReceiver* receiver) {
-    uint32_t now = get_millis();
+    if (!data || !data->internal_data) return;
 
-    // Update every 100ms
-    if (now - data->last_update_ms < 100) {
-        return;
+    auto* internal = static_cast<MockCANDataInternal*>(data->internal_data);
+
+    if (internal->log_entries.empty()) return;
+
+    // Calculate elapsed time since start
+    auto now = steady_clock::now();
+    double elapsed_sec = duration_cast<milliseconds>(now - internal->start_time).count() / 1000.0;
+
+    // Adjust for the log's start timestamp
+    double playback_time = elapsed_sec + internal->playback_start_timestamp;
+
+    // Process all messages that should have been sent by now
+    while (internal->current_index < internal->log_entries.size()) {
+        const auto& entry = internal->log_entries[internal->current_index];
+
+        if (entry.timestamp > playback_time) {
+            // This message is in the future, wait for next update
+            break;
+        }
+
+        // Send this message to the receiver
+        receiver->processCANMessage(entry.can_id, entry.dlc, entry.data);
+
+        internal->current_index++;
+        data->update_counter++;
     }
 
-    data->last_update_ms = now;
-    data->update_counter++;
-
-    // Generate mock data using public getter access pattern
-    // Note: This is a simplified approach - in production you'd use friend classes
-    // or a different architecture
-
-    // Simulate driving pattern
-    float time_sec = data->update_counter * 0.1f;
-    float speed = 50.0f + 30.0f * sin(time_sec * 0.1f);  // Speed oscillates 20-80 km/h
-    float battery_soc = 85.0f - (time_sec * 0.001f);     // Slowly decreasing
-
-    // Create temporary states and pack/unpack to simulate CAN traffic
-    uint8_t can_data[8];
-    uint8_t can_len;
-
-    // Battery SOC
-    BatterySOCState battery_soc_state;
-    battery_soc_state.soc_percent = (uint8_t)battery_soc;
-    battery_soc_state.gids = (uint16_t)(battery_soc * 2.81f);
-    battery_soc_state.pack_voltage = 360.0f + (battery_soc * 0.2f);
-    battery_soc_state.pack_current = speed * 0.8f;
-
-    // Vehicle speed
-    VehicleSpeedState speed_state;
-    speed_state.speed_kmh = speed;
-    speed_state.speed_mph = speed * 0.621371f;
-
-    // Motor RPM
-    MotorRPMState rpm_state;
-    rpm_state.rpm = (int16_t)(speed * 45.0f);  // Roughly proportional
-    rpm_state.direction = (speed > 1.0f) ? 1 : 0;
-
-    // Inverter telemetry
-    InverterState inverter_state;
-    inverter_state.voltage = 360.0f + (battery_soc * 0.2f);
-    inverter_state.current = speed * 0.8f;
-    inverter_state.temp_inverter = 45 + (int16_t)(speed * 0.3f);
-    inverter_state.temp_motor = 50 + (int16_t)(speed * 0.4f);
-    inverter_state.status_flags = 0x01;
-
-    // Battery temperature
-    BatteryTempState battery_temp_state;
-    battery_temp_state.temp_max = 28 + (int8_t)(speed * 0.1f);
-    battery_temp_state.temp_min = 24;
-    battery_temp_state.temp_avg = 26 + (int8_t)(speed * 0.05f);
-    battery_temp_state.sensor_count = 96;
-
-    // Charger (not charging while driving)
-    ChargerState charger_state;
-    charger_state.charging = 0;
-    charger_state.charge_current = 0.0f;
-    charger_state.charge_voltage = 0.0f;
-    charger_state.charge_time = 0;
-
-    // GPS Position (simulated location)
-    GPSPositionState gps_pos_state;
-    gps_pos_state.latitude = 37.7749 + sin(time_sec * 0.01f) * 0.01;
-    gps_pos_state.longitude = -122.4194 + cos(time_sec * 0.01f) * 0.01;
-    gps_pos_state.altitude = 50.0f;
-    gps_pos_state.satellites = 12;
-    gps_pos_state.fix_quality = 1;
-
-    // GPS Velocity
-    GPSVelocityState gps_vel_state;
-    gps_vel_state.speed_kmh = speed;
-    gps_vel_state.heading = fmod(time_sec * 10.0f, 360.0f);
-    gps_vel_state.pdop = 1.2f;
-
-    // GPS Time
-    GPSTimeState gps_time_state;
-    auto now_time = system_clock::now();
-    auto now_c = system_clock::to_time_t(now_time);
-    auto* tm_info = gmtime(&now_c);
-    gps_time_state.year = tm_info->tm_year + 1900;
-    gps_time_state.month = tm_info->tm_mon + 1;
-    gps_time_state.day = tm_info->tm_mday;
-    gps_time_state.hour = tm_info->tm_hour;
-    gps_time_state.minute = tm_info->tm_min;
-    gps_time_state.second = tm_info->tm_sec;
-
-    // Inject mock data into receiver using setter methods
-    receiver->setBatterySOCState(battery_soc_state);
-    receiver->setVehicleSpeedState(speed_state);
-    receiver->setMotorRPMState(rpm_state);
-    receiver->setInverterState(inverter_state);
-    receiver->setBatteryTempState(battery_temp_state);
-    receiver->setChargerState(charger_state);
-    receiver->setGPSPositionState(gps_pos_state);
-    receiver->setGPSVelocityState(gps_vel_state);
-    receiver->setGPSTimeState(gps_time_state);
-
-    std::cout << "[MockCAN] Generated data - Speed: " << speed
-              << " km/h, SOC: " << battery_soc << "%" << std::endl;
+    // Loop back to the beginning if we've processed all messages
+    if (internal->current_index >= internal->log_entries.size() && internal->loop_enabled) {
+        internal->current_index = 0;
+        internal->start_time = now;
+        internal->playback_start_timestamp = internal->log_entries[0].timestamp;
+        internal->loop_count++;
+        std::cout << "[MockCAN] Looping playback (loop #" << internal->loop_count << ")" << std::endl;
+    }
 }
 
 void mock_can_cleanup(MockCANData* data) {
     if (data) {
+        if (data->internal_data) {
+            delete static_cast<MockCANDataInternal*>(data->internal_data);
+        }
         delete data;
         std::cout << "[MockCAN] Cleaned up" << std::endl;
     }

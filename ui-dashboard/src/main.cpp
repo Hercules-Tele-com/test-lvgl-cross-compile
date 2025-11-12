@@ -6,8 +6,12 @@
 
 #include "lvgl.h"
 
-// fbdev + LVGL tick helpers (from your platform/linux/)
-#include "platform/linux/fbdev_display.h"
+// Platform-specific display drivers
+#ifdef PLATFORM_WINDOWS
+    #include "platform/windows/sdl_display.h"
+#elif defined(PLATFORM_LINUX)
+    #include "platform/linux/fbdev_display.h"
+#endif
 
 // UI (SquareLine-generated)
 #include "ui/ui.h"
@@ -29,21 +33,34 @@ int main() {
     std::signal(SIGTERM, handle_sigint);
 
     std::printf("=== Nissan Leaf CAN Dashboard ===\n");
-#if defined(__linux__)
+#ifdef PLATFORM_WINDOWS
+    std::printf("Platform: Windows (SDL2)\n");
+#elif defined(PLATFORM_LINUX)
     std::printf("Platform: Linux (Framebuffer)\n");
 #endif
 
-    // 1) fbdev: init /dev/fb0 and register LVGL display driver (also calls lv_init)
+    // 1) Initialize platform-specific display
+#ifdef PLATFORM_WINDOWS
+    if (!sdl_display_init()) {
+        std::fprintf(stderr, "[SDL] init failed\n");
+        return 1;
+    }
+#elif defined(PLATFORM_LINUX)
     if (!fbdev_display_init()) {
         std::fprintf(stderr, "[fbdev] init failed; is /dev/fb0 available and permission OK?\n");
         return 1;
     }
+#endif
 
-    // 2) CAN receiver with 2 channels (non-blocking reader threads)
+    // 2) CAN receiver (mock on Windows, SocketCAN on Linux, future: CANable Pro on Windows)
     CANReceiver can;
     if (!can.init()) {
         std::fprintf(stderr, "[CANReceiver] failed to init.\n");
+#ifdef PLATFORM_WINDOWS
+        sdl_display_cleanup();
+#elif defined(PLATFORM_LINUX)
         fbdev_display_cleanup();
+#endif
         return 1;
     }
     std::puts("CAN receiver initialized");
@@ -67,21 +84,30 @@ int main() {
             last_tick = now;
         }
 
-        // Poll CAN sockets and process incoming messages
+        // Process CAN messages (from log file on Windows, SocketCAN on Linux, CANable Pro in future)
         can.update();
 
         // Update gauges from recent CAN values (this is cheap)
         dashboard.update(can);
 
-        // Let LVGL handle timers/animations/invalidations
+#ifdef PLATFORM_WINDOWS
+        // Windows: SDL handles events and presents the display
+        sdl_display_update();
+#elif defined(PLATFORM_LINUX)
+        // Linux: Let LVGL handle timers/animations/invalidations
         lv_timer_handler();
+#endif
 
         // Small sleep to avoid pegging a core
         std::this_thread::sleep_for(5ms);
     }
 
     // 3) Shutdown
+#ifdef PLATFORM_WINDOWS
+    sdl_display_cleanup();
+#elif defined(PLATFORM_LINUX)
     fbdev_display_cleanup();
+#endif
     return 0;
 }
 

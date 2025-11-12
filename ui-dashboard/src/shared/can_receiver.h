@@ -54,6 +54,9 @@ public:
     uint8_t getGPSFixType() const { return gps_fix_type_.load(std::memory_order_relaxed); }
     uint8_t getGPSSats() const { return gps_sats_.load(std::memory_order_relaxed); }
 
+    // Process a raw CAN message (for both Linux SocketCAN and Windows mock data)
+    void processCANMessage(uint32_t can_id, uint8_t len, const uint8_t* data);
+
 private:
     void* platform_data = nullptr;     // MultiCan* on Linux, MockCANData* on Windows
 
