@@ -96,6 +96,12 @@ void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t*
         uint16_t minT = data[2] | (data[3] << 8);   // Min cell temp (°C, LE, NO scaling!)
         uint16_t maxV = data[4] | (data[5] << 8);   // Max cell voltage (mV, LE)
         uint16_t minV = data[6] | (data[7] << 8);   // Min cell voltage (mV, LE)
+
+        // Skip printing if all values are zero (empty module slot)
+        if (maxT == 0 && minT == 0 && maxV == 0 && minV == 0) {
+            return;
+        }
+
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
         printf("[0x%03X] Cell Extrema: MaxT=%u°C, MinT=%u°C, MaxV=%umV, MinV=%umV\n",
                baseId, maxT, minT, maxV, minV);
