@@ -129,38 +129,38 @@ void packVictron0x351(uint8_t* data) {
         discharge_limit *= 0.7f;
     }
 
-    // Byte 0-1: Charge voltage limit (0.1V, uint16_t big-endian)
+    // Byte 0-1: Charge voltage limit (0.1V, uint16_t little-endian)
     uint16_t vchg = 4040;  // 404.0V (typical for 96S Leaf pack)
-    data[0] = (vchg >> 8) & 0xFF;
-    data[1] = vchg & 0xFF;
+    data[0] = vchg & 0xFF;
+    data[1] = (vchg >> 8) & 0xFF;
 
-    // Byte 2-3: Charge current limit (0.1A, int16_t big-endian)
+    // Byte 2-3: Charge current limit (0.1A, int16_t little-endian)
     int16_t ichg = (int16_t)(charge_limit * 10.0f);
-    data[2] = (ichg >> 8) & 0xFF;
-    data[3] = ichg & 0xFF;
+    data[2] = ichg & 0xFF;
+    data[3] = (ichg >> 8) & 0xFF;
 
-    // Byte 4-5: Discharge current limit (0.1A, int16_t big-endian)
+    // Byte 4-5: Discharge current limit (0.1A, int16_t little-endian)
     int16_t idis = (int16_t)(discharge_limit * 10.0f);
-    data[4] = (idis >> 8) & 0xFF;
-    data[5] = idis & 0xFF;
+    data[4] = idis & 0xFF;
+    data[5] = (idis >> 8) & 0xFF;
 
-    // Byte 6-7: Discharge voltage limit (0.1V, uint16_t big-endian)
+    // Byte 6-7: Discharge voltage limit (0.1V, uint16_t little-endian)
     uint16_t vdis = 2880;  // 288.0V (typical cutoff for 96S)
-    data[6] = (vdis >> 8) & 0xFF;
-    data[7] = vdis & 0xFF;
+    data[6] = vdis & 0xFF;
+    data[7] = (vdis >> 8) & 0xFF;
 }
 
 // Pack Victron 0x355: State of Charge / State of Health
 void packVictron0x355(uint8_t* data) {
-    // Byte 0-1: SOC (%, uint16_t big-endian)
+    // Byte 0-1: SOC (%, uint16_t little-endian)
     uint16_t soc = (uint16_t)bmsState.soc_percent;
-    data[0] = (soc >> 8) & 0xFF;
-    data[1] = soc & 0xFF;
+    data[0] = soc & 0xFF;
+    data[1] = (soc >> 8) & 0xFF;
 
-    // Byte 2-3: SOH (%, uint16_t big-endian)
+    // Byte 2-3: SOH (%, uint16_t little-endian)
     uint16_t soh = (uint16_t)bmsState.soh_percent;
-    data[2] = (soh >> 8) & 0xFF;
-    data[3] = soh & 0xFF;
+    data[2] = soh & 0xFF;
+    data[3] = (soh >> 8) & 0xFF;
 
     // Byte 4-7: Reserved
     data[4] = 0;
@@ -171,20 +171,20 @@ void packVictron0x355(uint8_t* data) {
 
 // Pack Victron 0x356: Battery Voltage, Current, Temperature
 void packVictron0x356(uint8_t* data) {
-    // Byte 0-1: Battery voltage (0.01V, uint16_t big-endian)
+    // Byte 0-1: Battery voltage (0.01V, uint16_t little-endian)
     uint16_t voltage = (uint16_t)(bmsState.pack_voltage * 100.0f);
-    data[0] = (voltage >> 8) & 0xFF;
-    data[1] = voltage & 0xFF;
+    data[0] = voltage & 0xFF;
+    data[1] = (voltage >> 8) & 0xFF;
 
-    // Byte 2-3: Battery current (0.1A, int16_t big-endian, positive = discharge)
+    // Byte 2-3: Battery current (0.1A, int16_t little-endian, positive = discharge)
     int16_t current = (int16_t)(bmsState.pack_current * 10.0f);
-    data[2] = (current >> 8) & 0xFF;
-    data[3] = current & 0xFF;
+    data[2] = current & 0xFF;
+    data[3] = (current >> 8) & 0xFF;
 
-    // Byte 4-5: Battery temperature (0.1°C, int16_t big-endian)
+    // Byte 4-5: Battery temperature (0.1°C, int16_t little-endian)
     int16_t temp = (int16_t)(bmsState.temp_avg * 10);
-    data[4] = (temp >> 8) & 0xFF;
-    data[5] = temp & 0xFF;
+    data[4] = temp & 0xFF;
+    data[5] = (temp >> 8) & 0xFF;
 
     // Byte 6-7: Reserved
     data[6] = 0;
@@ -216,17 +216,27 @@ void packVictron0x35E(uint8_t* data) {
     data[7] = 0;
 }
 
-// Pack Victron 0x35F: Manufacturer info
+// Pack Victron 0x35F: Battery Characteristics
 void packVictron0x35F(uint8_t* data) {
-    // Identify as Nissan Leaf BMS
-    data[0] = 'N';  // Manufacturer: Nissan
-    data[1] = 'I';
-    data[2] = 'S';
-    data[3] = 'S';
-    data[4] = 'A';
-    data[5] = 'N';
-    data[6] = 0;
-    data[7] = 0;
+    // Byte 0: Cell chemistry type (0=Unknown, 1=LiFePO4, 2=NMC)
+    data[0] = 0;  // Unknown (Nissan uses proprietary chemistry)
+
+    // Byte 1: Number of cells in series
+    data[1] = 96;  // Typical Nissan Leaf pack (96S)
+
+    // Byte 2-3: Firmware version
+    data[2] = 1;  // Major version
+    data[3] = 0;  // Minor version
+
+    // Byte 4-5: Battery capacity in Ah (little-endian, NO scaling)
+    uint16_t capacity_ah = 66;  // Example: 24kWh / 360V ≈ 66Ah (adjust based on pack)
+    data[4] = capacity_ah & 0xFF;
+    data[5] = (capacity_ah >> 8) & 0xFF;
+
+    // Byte 6-7: Manufacturer ID (little-endian)
+    uint16_t mfr_id = 0x4E49;  // 'NI' in ASCII (Nissan ID)
+    data[6] = mfr_id & 0xFF;
+    data[7] = (mfr_id >> 8) & 0xFF;
 }
 
 // Send all Victron protocol messages
