@@ -181,7 +181,13 @@ def api_status():
             "gps_position": query_all_fields("gps_position"),
             "gps_velocity": query_all_fields("gps_velocity"),
             "body_temp": query_all_fields("body_temp"),
-            "body_voltage": query_all_fields("body_voltage")
+            "body_voltage": query_all_fields("body_voltage"),
+            # Victron BMS data
+            "victron_pack": query_all_fields("victron_pack"),
+            "victron_soc": query_all_fields("victron_soc"),
+            "victron_limits": query_all_fields("victron_limits"),
+            "victron_characteristics": query_all_fields("victron_characteristics"),
+            "victron_alarms": query_all_fields("victron_alarms")
         }
 
         return jsonify(status)
@@ -257,6 +263,62 @@ def api_summary():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/victron/status')
+def api_victron_status():
+    """Get current Victron BMS status (all metrics)"""
+    try:
+        status = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "pack": query_all_fields("victron_pack"),
+            "soc": query_all_fields("victron_soc"),
+            "limits": query_all_fields("victron_limits"),
+            "characteristics": query_all_fields("victron_characteristics"),
+            "alarms": query_all_fields("victron_alarms")
+        }
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error in /api/victron/status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/victron/cells')
+def api_victron_cells():
+    """Get cell extrema for all modules"""
+    try:
+        # Query cell data for all modules (0-3)
+        cells = {}
+        for module_id in range(4):
+            flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "victron_cells")
+  |> filter(fn: (r) => r["module_id"] == "{module_id}")
+  |> last()
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+            '''
+
+            tables = query_api.query(flux_query)
+            for table in tables:
+                for record in table.records:
+                    cells[f"module_{module_id}"] = {
+                        "max_temp_c": record.values.get("max_temp_c"),
+                        "min_temp_c": record.values.get("min_temp_c"),
+                        "max_voltage_mv": record.values.get("max_voltage_mv"),
+                        "min_voltage_mv": record.values.get("min_voltage_mv"),
+                        "temp_delta_c": record.values.get("temp_delta_c"),
+                        "voltage_delta_mv": record.values.get("voltage_delta_mv"),
+                        "time": record.get_time().isoformat()
+                    }
+
+        return jsonify({
+            "timestamp": datetime.utcnow().isoformat(),
+            "cells": cells
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/victron/cells: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================================
 # WEBSOCKET EVENTS
 # ============================================================================
@@ -292,7 +354,12 @@ def broadcast_realtime_data():
                 "motor_rpm": query_all_fields("motor_rpm"),
                 "inverter": query_all_fields("inverter"),
                 "charger": query_all_fields("charger"),
-                "battery_temp": query_all_fields("battery_temp")
+                "battery_temp": query_all_fields("battery_temp"),
+                # Victron BMS real-time data
+                "victron_pack": query_all_fields("victron_pack"),
+                "victron_soc": query_all_fields("victron_soc"),
+                "victron_limits": query_all_fields("victron_limits"),
+                "victron_characteristics": query_all_fields("victron_characteristics")
             }
 
             # Broadcast to all connected clients
