@@ -32,12 +32,12 @@ CANReceiver::~CANReceiver() {
 void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t* data) {
     const uint32_t baseId = (can_id & 0x7FF); // 11-bit ID
 
-    // 0x351: Victron BMS - Battery Charge/Discharge Limits
+    // 0x351: Victron BMS - Battery Charge/Discharge Limits (Little-Endian)
     if (baseId == 0x351 && len >= 8) {
-        uint16_t vchg = (data[0] << 8) | data[1];   // Charge voltage limit (0.1V)
-        int16_t ichg = (data[2] << 8) | data[3];    // Charge current limit (0.1A)
-        int16_t idis = (data[4] << 8) | data[5];    // Discharge current limit (0.1A)
-        uint16_t vdis = (data[6] << 8) | data[7];   // Discharge voltage limit (0.1V)
+        uint16_t vchg = data[0] | (data[1] << 8);   // Charge voltage limit (0.1V, LE)
+        int16_t ichg = data[2] | (data[3] << 8);    // Charge current limit (0.1A, LE)
+        int16_t idis = data[4] | (data[5] << 8);    // Discharge current limit (0.1A, LE)
+        uint16_t vdis = data[6] | (data[7] << 8);   // Discharge voltage limit (0.1V, LE)
         ichg_max_.store(ichg, std::memory_order_relaxed);
         idis_max_.store(idis, std::memory_order_relaxed);
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
@@ -47,10 +47,10 @@ void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t*
 #endif
     }
 
-    // 0x355: Victron BMS - State of Charge / State of Health
+    // 0x355: Victron BMS - State of Charge / State of Health (Little-Endian)
     else if (baseId == 0x355 && len >= 4) {
-        uint16_t soc = (data[0] << 8) | data[1];    // SOC (%)
-        uint16_t soh = (data[2] << 8) | data[3];    // SOH (%)
+        uint16_t soc = data[0] | (data[1] << 8);    // SOC (%, LE)
+        uint16_t soh = data[2] | (data[3] << 8);    // SOH (%, LE)
         soc_.store(soc, std::memory_order_relaxed);
         soh_.store(soh, std::memory_order_relaxed);
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
@@ -59,11 +59,11 @@ void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t*
 #endif
     }
 
-    // 0x356: Victron BMS - Battery Voltage, Current, Temperature
+    // 0x356: Victron BMS - Battery Voltage, Current, Temperature (Little-Endian)
     else if (baseId == 0x356 && len >= 6) {
-        uint16_t pack_v = (data[0] << 8) | data[1];  // Voltage (0.01V)
-        int16_t pack_i = (data[2] << 8) | data[3];   // Current (0.1A, signed, positive = discharge)
-        int16_t pack_t = (data[4] << 8) | data[5];   // Temperature (0.1°C)
+        uint16_t pack_v = data[0] | (data[1] << 8);  // Voltage (0.01V, LE)
+        int16_t pack_i = data[2] | (data[3] << 8);   // Current (0.1A, signed, negative = discharge, LE)
+        uint16_t pack_t = data[4] | (data[5] << 8);  // Temperature (0.1°C, LE)
         pack_voltage_.store(pack_v, std::memory_order_relaxed);
         pack_current_.store(pack_i, std::memory_order_relaxed);
         temp_avg_.store((int8_t)(pack_t/10), std::memory_order_relaxed);
@@ -74,29 +74,31 @@ void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t*
 #endif
     }
 
-    // 0x35F: Victron BMS - Battery Characteristics
+    // 0x35F: Victron BMS - Battery Characteristics (Little-Endian)
     else if (baseId == 0x35F && len >= 8) {
-        uint8_t cell_type = data[0];          // Cell chemistry type
+        uint8_t cell_type = data[0];          // Cell chemistry type (0=Unknown, 1=LiFePO4, 2=NMC)
         uint8_t cell_qty = data[1];           // Number of cells
-        uint16_t fw_version = (data[2] << 8) | data[3];  // Firmware version
-        uint16_t capacity = (data[4] << 8) | data[5];    // Capacity (Ah)
-        uint16_t mfr_id = (data[6] << 8) | data[7];      // Manufacturer ID
+        uint8_t fw_major = data[2];           // Firmware major version
+        uint8_t fw_minor = data[3];           // Firmware minor version
+        uint16_t capacity = data[4] | (data[5] << 8);  // Capacity (Ah, LE) - NO scaling!
+        uint16_t mfr_id = data[6] | (data[7] << 8);    // Manufacturer ID (LE)
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x35F] Characteristics: CellType=%u, Qty=%u, FW=%.1f, Cap=%uAh, MfrID=%u\n",
-               cell_type, cell_qty, fw_version/10.0f, capacity, mfr_id);
+        const char* cell_types[] = {"Unknown", "LiFePO4", "NMC"};
+        printf("[0x35F] Characteristics: CellType=%s, Qty=%u, FW=%u.%u, Cap=%uAh, MfrID=%u\n",
+               cell_type <= 2 ? cell_types[cell_type] : "?", cell_qty, fw_major, fw_minor, capacity, mfr_id);
         fflush(stdout);
 #endif
     }
 
-    // 0x370-0x373: Victron BMS - Cell Module Voltages (optional)
+    // 0x370-0x373: Victron BMS - Cell Module Extrema (Little-Endian)
     else if (baseId >= 0x370 && baseId <= 0x373 && len >= 8) {
-        uint16_t maxT = (data[0] << 8) | data[1];   // Max cell temp (0.1°C)
-        uint16_t minT = (data[2] << 8) | data[3];   // Min cell temp (0.1°C)
-        uint16_t maxV = (data[4] << 8) | data[5];   // Max cell voltage (mV)
-        uint16_t minV = (data[6] << 8) | data[7];   // Min cell voltage (mV)
+        uint16_t maxT = data[0] | (data[1] << 8);   // Max cell temp (°C, LE, NO scaling!)
+        uint16_t minT = data[2] | (data[3] << 8);   // Min cell temp (°C, LE, NO scaling!)
+        uint16_t maxV = data[4] | (data[5] << 8);   // Max cell voltage (mV, LE)
+        uint16_t minV = data[6] | (data[7] << 8);   // Min cell voltage (mV, LE)
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x%03X] Cell Extrema: MaxT=%.1f°C, MinT=%.1f°C, MaxV=%umV, MinV=%umV\n",
-               baseId, maxT/10.0f, minT/10.0f, maxV, minV);
+        printf("[0x%03X] Cell Extrema: MaxT=%u°C, MinT=%u°C, MaxV=%umV, MinV=%umV\n",
+               baseId, maxT, minT, maxV, minV);
         fflush(stdout);
 #endif
     }
