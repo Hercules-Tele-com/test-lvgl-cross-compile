@@ -28,6 +28,13 @@ CAN_ID_GPS_TIME = 0x712
 CAN_ID_BODY_TEMP_SENSORS = 0x720
 CAN_ID_BODY_VOLTAGE = 0x721
 
+# Victron BMS Protocol CAN IDs
+CAN_ID_VICTRON_PACK = 0x351      # Battery voltage, current, SOC, SOH
+CAN_ID_VICTRON_TEMPS = 0x355     # Battery temperatures
+CAN_ID_VICTRON_LIMITS = 0x356    # Charge/discharge limits
+CAN_ID_VICTRON_ALARMS = 0x35E    # Alarms and warnings
+CAN_ID_VICTRON_INFO = 0x35F      # Manufacturer info
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -291,6 +298,84 @@ class CANTelemetryLogger:
 
         return point
 
+    def parse_victron_pack(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS pack data (0x351)"""
+        if len(data) < 8:
+            return None
+
+        pack_voltage = int.from_bytes(data[0:2], 'big') * 0.1  # V
+        pack_current = int.from_bytes(data[2:4], 'big', signed=True) * 0.1  # A
+        soc = int.from_bytes(data[4:6], 'big') * 0.1  # %
+        soh = int.from_bytes(data[6:8], 'big') * 0.1  # %
+
+        point = Point("victron_bms_pack") \
+            .tag("source", "victron_bms") \
+            .field("voltage", float(pack_voltage)) \
+            .field("current", float(pack_current)) \
+            .field("soc", float(soc)) \
+            .field("soh", float(soh)) \
+            .field("power_kw", float(pack_voltage * pack_current / 1000.0))
+
+        return point
+
+    def parse_victron_temps(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS temperature data (0x355)"""
+        if len(data) < 6:
+            return None
+
+        temp_max = int.from_bytes(data[0:2], 'big', signed=True) * 0.1  # °C
+        temp_min = int.from_bytes(data[2:4], 'big', signed=True) * 0.1  # °C
+        temp_avg = int.from_bytes(data[4:6], 'big', signed=True) * 0.1  # °C
+
+        point = Point("victron_bms_temps") \
+            .tag("source", "victron_bms") \
+            .field("temp_max", float(temp_max)) \
+            .field("temp_min", float(temp_min)) \
+            .field("temp_avg", float(temp_avg)) \
+            .field("temp_delta", float(temp_max - temp_min))
+
+        return point
+
+    def parse_victron_limits(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS current limits (0x356)"""
+        if len(data) < 8:
+            return None
+
+        charge_current_max = int.from_bytes(data[0:2], 'big') * 0.1  # A
+        discharge_current_max = int.from_bytes(data[2:4], 'big') * 0.1  # A
+        charge_voltage_max = int.from_bytes(data[4:6], 'big') * 0.1  # V
+        discharge_voltage_min = int.from_bytes(data[6:8], 'big') * 0.1  # V
+
+        point = Point("victron_bms_limits") \
+            .tag("source", "victron_bms") \
+            .field("charge_current_max", float(charge_current_max)) \
+            .field("discharge_current_max", float(discharge_current_max)) \
+            .field("charge_voltage_max", float(charge_voltage_max)) \
+            .field("discharge_voltage_min", float(discharge_voltage_min))
+
+        return point
+
+    def parse_victron_alarms(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS alarms (0x35E)"""
+        if len(data) < 8:
+            return None
+
+        alarms = data[0]  # Alarm flags
+        warnings = data[1]  # Warning flags
+        num_modules = int.from_bytes(data[2:4], 'big')
+
+        point = Point("victron_bms_alarms") \
+            .tag("source", "victron_bms") \
+            .field("alarm_low_soc", int((alarms & 0x01) != 0)) \
+            .field("alarm_high_temp", int((alarms & 0x04) != 0)) \
+            .field("alarm_low_temp", int((alarms & 0x08) != 0)) \
+            .field("warning_low_soc", int((warnings & 0x01) != 0)) \
+            .field("warning_high_temp", int((warnings & 0x04) != 0)) \
+            .field("warning_low_temp", int((warnings & 0x08) != 0)) \
+            .field("num_modules", int(num_modules))
+
+        return point
+
     def process_can_message(self, msg: can.Message):
         """Process a single CAN message and write to InfluxDB"""
         self.msg_count += 1
@@ -318,6 +403,14 @@ class CANTelemetryLogger:
             point = self.parse_body_temp(msg.data)
         elif msg.arbitration_id == CAN_ID_BODY_VOLTAGE:
             point = self.parse_body_voltage(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_PACK:
+            point = self.parse_victron_pack(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_TEMPS:
+            point = self.parse_victron_temps(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_LIMITS:
+            point = self.parse_victron_limits(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_ALARMS:
+            point = self.parse_victron_alarms(msg.data)
 
         # Write to InfluxDB
         if point:
