@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nissan Leaf Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🚗 Nissan Leaf Telemetry</h1>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="dashboard">Dashboard</button>
+            <button class="tab" data-tab="history">Historical Data</button>
+            <button class="tab" data-tab="details">Details</button>
+        </nav>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <!-- Main Metrics Row -->
+            <div class="metrics-grid">
+                <!-- Speed Gauge -->
+                <div class="metric-card large">
+                    <h3>Speed</h3>
+                    <div class="gauge-container">
+                        <svg viewBox="0 0 200 120" class="gauge">
+                            <path d="M 20 100 A 80 80 0 0 1 180 100"
+                                  fill="none" stroke="#2a2a2a" stroke-width="15" />
+                            <path id="speedArc" d="M 20 100 A 80 80 0 0 1 180 100"
+                                  fill="none" stroke="#00ff88" stroke-width="15"
+                                  stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+                        </svg>
+                        <div class="gauge-value">
+                            <span id="speedValue" class="value-large">0</span>
+                            <span class="value-unit">km/h</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Battery SOC -->
+                <div class="metric-card large battery">
+                    <h3>Battery</h3>
+                    <div class="battery-display">
+                        <div class="battery-icon">
+                            <div class="battery-level" id="batteryLevel"></div>
+                            <div class="battery-terminal"></div>
+                        </div>
+                        <div class="battery-info">
+                            <div class="value-large" id="socValue">--</div>
+                            <div class="value-unit">% SOC</div>
+                            <div class="value-small">
+                                <span id="batteryVoltage">--</span> V
+                                <span id="batteryCurrent">--</span> A
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Motor RPM -->
+                <div class="metric-card">
+                    <h3>Motor</h3>
+                    <div class="value-display">
+                        <div class="value-large" id="motorRpm">0</div>
+                        <div class="value-unit">RPM</div>
+                        <div class="value-small" id="motorDirection">--</div>
+                    </div>
+                </div>
+
+                <!-- Power -->
+                <div class="metric-card">
+                    <h3>Power</h3>
+                    <div class="value-display">
+                        <div class="value-large" id="powerValue">0.0</div>
+                        <div class="value-unit">kW</div>
+                        <div class="value-small" id="powerType">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Temperature Row -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>Inverter Temp</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="inverterTemp">--</div>
+                        <div class="value-unit">°C</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Motor Temp</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="motorTemp">--</div>
+                        <div class="value-unit">°C</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Battery Temp</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="batteryTemp">--</div>
+                        <div class="value-unit">°C</div>
+                        <div class="value-small">
+                            <span id="batteryTempRange">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card charging" id="chargingCard">
+                    <h3>Charging</h3>
+                    <div class="value-display">
+                        <div class="charging-status" id="chargingStatus">Not Charging</div>
+                        <div class="value-small">
+                            <span id="chargingPower">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status Row -->
+            <div class="metrics-grid">
+                <div class="metric-card small">
+                    <h3>12V System</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="voltage12v">--</div>
+                        <div class="value-unit">V</div>
+                    </div>
+                </div>
+
+                <div class="metric-card small">
+                    <h3>GPS Speed</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="gpsSpeed">--</div>
+                        <div class="value-unit">km/h</div>
+                    </div>
+                </div>
+
+                <div class="metric-card small">
+                    <h3>Heading</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="gpsHeading">--</div>
+                        <div class="value-unit">°</div>
+                    </div>
+                </div>
+
+                <div class="metric-card small">
+                    <h3>Last Update</h3>
+                    <div class="value-display">
+                        <div class="value-small" id="lastUpdate">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historical Data Tab -->
+        <div id="history" class="tab-content">
+            <div class="history-controls">
+                <h2>Historical Trends</h2>
+                <div class="time-range-selector">
+                    <button class="range-btn active" data-range="1h">1 Hour</button>
+                    <button class="range-btn" data-range="6h">6 Hours</button>
+                    <button class="range-btn" data-range="24h">24 Hours</button>
+                    <button class="range-btn" data-range="7d">7 Days</button>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Battery State of Charge</h3>
+                    <canvas id="chartBatterySoc"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Vehicle Speed</h3>
+                    <canvas id="chartSpeed"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Power (kW)</h3>
+                    <canvas id="chartPower"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Battery Temperature</h3>
+                    <canvas id="chartBatteryTemp"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Inverter & Motor Temperature</h3>
+                    <canvas id="chartTemps"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Battery Voltage & Current</h3>
+                    <canvas id="chartBatteryVI"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Tab -->
+        <div id="details" class="tab-content">
+            <h2>System Details</h2>
+            <div class="details-grid">
+                <div class="detail-section">
+                    <h3>Inverter</h3>
+                    <pre id="detailsInverter">Loading...</pre>
+                </div>
+                <div class="detail-section">
+                    <h3>Battery</h3>
+                    <pre id="detailsBattery">Loading...</pre>
+                </div>
+                <div class="detail-section">
+                    <h3>Motor</h3>
+                    <pre id="detailsMotor">Loading...</pre>
+                </div>
+                <div class="detail-section">
+                    <h3>GPS</h3>
+                    <pre id="detailsGps">Loading...</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

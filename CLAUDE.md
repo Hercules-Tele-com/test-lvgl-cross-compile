@@ -243,6 +243,152 @@ Recommended extensions:
 - CMake Tools (for Raspberry Pi dashboard)
 - C/C++ (Microsoft)
 
+## Telemetry System
+
+### Overview
+
+The telemetry system provides comprehensive data logging, cloud synchronization, and web-based monitoring:
+
+- **Telemetry Logger**: Python service that reads CAN messages and writes to local InfluxDB
+- **Cloud Sync**: Automatically syncs data to InfluxDB Cloud when network is available
+- **Web Dashboard**: Flask-based web UI with real-time updates and historical charts
+- **Offline Capability**: Works completely offline with local storage and syncs when connection returns
+
+### Architecture
+
+```
+CAN Bus (can0) → Telemetry Logger → InfluxDB (Local)
+                                          ↓
+                                    Cloud Sync → InfluxDB Cloud
+                                          ↓
+                                    Web Dashboard (Port 8080)
+```
+
+### Quick Start
+
+```bash
+# Setup InfluxDB
+cd telemetry-system
+./scripts/setup-influxdb.sh
+
+# Configure cloud credentials (optional)
+cp config/influxdb-cloud.env.template config/influxdb-cloud.env
+nano config/influxdb-cloud.env
+
+# Install and start services
+sudo cp systemd/*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now telemetry-logger cloud-sync web-dashboard
+
+# Access web dashboard
+# http://<pi-ip>:8080
+```
+
+### Service Management
+
+```bash
+# View logs
+sudo journalctl -u telemetry-logger.service -f
+sudo journalctl -u cloud-sync.service -f
+sudo journalctl -u web-dashboard.service -f
+
+# Restart services
+sudo systemctl restart telemetry-logger.service
+sudo systemctl restart cloud-sync.service
+sudo systemctl restart web-dashboard.service
+
+# Check status
+systemctl status telemetry-logger.service
+systemctl status cloud-sync.service
+systemctl status web-dashboard.service
+```
+
+### Testing
+
+```bash
+# Run automated tests
+cd telemetry-system
+./tests/test_system.sh
+
+# Generate mock CAN data for testing
+python3 tests/mock_can_generator.py can0
+```
+
+### Adding New Telemetry Data
+
+1. Define CAN ID and state structure in `lib/LeafCANBus/src/LeafCANMessages.h`
+2. Add parser function in `telemetry-system/services/telemetry-logger/telemetry_logger.py`
+3. Update web dashboard to display new data in `telemetry-system/services/web-dashboard/`
+4. Update mock generator to include new message in `telemetry-system/tests/mock_can_generator.py`
+
+### Configuration Files
+
+- `telemetry-system/config/influxdb-local.env` - Local InfluxDB connection (auto-generated)
+- `telemetry-system/config/influxdb-cloud.env` - Cloud InfluxDB connection (manual)
+- `telemetry-system/systemd/*.service` - Systemd service definitions
+
+### Data Retention
+
+- **Local InfluxDB**: 30 days (configurable during setup)
+- **Cloud InfluxDB**: Based on your cloud plan
+- **Sync Frequency**: 5 minutes (configurable via `SYNC_INTERVAL_SECONDS`)
+
+### Web Dashboard Features
+
+- **Real-time Dashboard**: Mimics LVGL dashboard with live updates via WebSocket
+- **Historical Trends**: Victron-style charts with configurable time ranges (1h, 6h, 24h, 7d)
+- **Metrics**: Speed, battery SOC, power, temperatures, charging status, GPS, voltages
+- **No Authentication**: Designed for local network use only
+
+### Troubleshooting Telemetry Issues
+
+**No data in InfluxDB:**
+```bash
+# Check if logger is receiving messages
+sudo journalctl -u telemetry-logger.service -f
+
+# Send test CAN message
+cansend can0 1F2#0E1000640A1E1C01
+
+# Query InfluxDB directly
+source telemetry-system/config/influxdb-local.env
+influx query 'from(bucket:"'$INFLUX_BUCKET'") |> range(start: -1h) |> limit(n:10)' \
+  --org "$INFLUX_ORG" --token "$INFLUX_LOGGER_TOKEN"
+```
+
+**Cloud sync not working:**
+```bash
+# Check logs
+sudo journalctl -u cloud-sync.service -f
+
+# Verify cloud credentials
+source telemetry-system/config/influxdb-cloud.env
+curl -I "$INFLUX_CLOUD_URL/health"
+
+# Test connectivity
+ping -c 3 1.1.1.1
+```
+
+**Web dashboard not accessible:**
+```bash
+# Check if service is running
+sudo systemctl status web-dashboard.service
+
+# Test locally on Pi
+curl http://localhost:8080/api/status
+
+# Check firewall
+sudo ufw allow 8080/tcp
+```
+
+### Performance Impact
+
+On Raspberry Pi 4:
+- **CPU**: <5% per service
+- **Memory**: ~100 MB total for all three services
+- **Disk**: ~1-2 MB/hour in InfluxDB
+- **Network**: ~10-50 KB/s during cloud sync
+
 ## Important Reminders
 
 - Do what has been asked; nothing more, nothing less.
