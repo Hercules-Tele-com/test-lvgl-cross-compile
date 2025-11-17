@@ -6,13 +6,12 @@
  * Victron solar inverters, chargers, and ESS systems.
  *
  * Victron Protocol CAN IDs:
- * - 0x351: Battery voltage, current, SOC, SOH
- * - 0x355: Battery temperatures (min, max, avg)
- * - 0x356: Charge/discharge current limits
+ * - 0x351: Charge/discharge voltage and current limits
+ * - 0x355: State of Charge (SOC) and State of Health (SOH)
+ * - 0x356: Battery voltage, current, and temperature measurements
  * - 0x35E: Battery alarms and warnings
- * - 0x35F: Battery manufacturer info
- * - 0x370-0x373: Cell module voltages (optional)
- * - 0x374-0x377: Cell module temperatures (optional)
+ * - 0x35F: Battery characteristics (cell type, capacity, firmware)
+ * - 0x370-0x373: Cell module extrema (min/max voltages and temps) - optional
  *
  * Hardware:
  * - ESP32 DevKit
@@ -104,72 +103,24 @@ void unpack_leaf_charger_status(const uint8_t* data, uint8_t len, void* state) {
     Serial.printf("[0x390] Charging: %s\n", bms->charging ? "YES" : "NO");
 }
 
-// Pack Victron 0x351: Battery voltage, current, SOC
+// Pack Victron 0x351: Battery Charge/Discharge Limits
 void packVictron0x351(uint8_t* data) {
-    // Byte 0-1: Pack voltage (V * 10, uint16_t big-endian)
-    uint16_t voltage = (uint16_t)(bmsState.pack_voltage * 10.0f);
-    data[0] = (voltage >> 8) & 0xFF;
-    data[1] = voltage & 0xFF;
-
-    // Byte 2-3: Pack current (A * 10, int16_t big-endian, positive = discharge)
-    int16_t current = (int16_t)(bmsState.pack_current * 10.0f);
-    data[2] = (current >> 8) & 0xFF;
-    data[3] = current & 0xFF;
-
-    // Byte 4-5: SOC (% * 10, uint16_t big-endian)
-    uint16_t soc = (uint16_t)(bmsState.soc_percent * 10);
-    data[4] = (soc >> 8) & 0xFF;
-    data[5] = soc & 0xFF;
-
-    // Byte 6-7: SOH (% * 10, uint16_t big-endian)
-    uint16_t soh = (uint16_t)(bmsState.soh_percent * 10);
-    data[6] = (soh >> 8) & 0xFF;
-    data[7] = soh & 0xFF;
-}
-
-// Pack Victron 0x355: Battery temperatures
-void packVictron0x355(uint8_t* data) {
-    // Byte 0-1: Highest temperature (°C * 10, int16_t big-endian)
-    int16_t temp_max = (int16_t)(bmsState.temp_max * 10);
-    data[0] = (temp_max >> 8) & 0xFF;
-    data[1] = temp_max & 0xFF;
-
-    // Byte 2-3: Lowest temperature (°C * 10, int16_t big-endian)
-    int16_t temp_min = (int16_t)(bmsState.temp_min * 10);
-    data[2] = (temp_min >> 8) & 0xFF;
-    data[3] = temp_min & 0xFF;
-
-    // Byte 4-5: Average temperature (°C * 10, int16_t big-endian)
-    int16_t temp_avg = (int16_t)(bmsState.temp_avg * 10);
-    data[4] = (temp_avg >> 8) & 0xFF;
-    data[5] = temp_avg & 0xFF;
-
-    // Byte 6-7: Reserved
-    data[6] = 0;
-    data[7] = 0;
-}
-
-// Pack Victron 0x356: Charge/discharge current limits
-void packVictron0x356(uint8_t* data) {
     // Calculate limits based on battery state
-    // Leaf battery typical limits: 150A discharge, 50A charge
-    // Adjust based on temperature and SOC
-
-    float charge_limit = 50.0f;  // Base charge current limit
-    float discharge_limit = 150.0f;  // Base discharge current limit
+    float charge_limit = 50.0f;  // Base charge current limit (A)
+    float discharge_limit = 150.0f;  // Base discharge current limit (A)
 
     // Reduce charging at high SOC
     if (bmsState.soc_percent > 95) {
-        charge_limit *= 0.5f;  // 50% at >95%
+        charge_limit *= 0.5f;
     } else if (bmsState.soc_percent > 90) {
-        charge_limit *= 0.7f;  // 70% at >90%
+        charge_limit *= 0.7f;
     }
 
     // Reduce discharge at low SOC
     if (bmsState.soc_percent < 10) {
-        discharge_limit *= 0.3f;  // 30% at <10%
+        discharge_limit *= 0.3f;
     } else if (bmsState.soc_percent < 20) {
-        discharge_limit *= 0.5f;  // 50% at <20%
+        discharge_limit *= 0.5f;
     }
 
     // Temperature derating
@@ -178,25 +129,66 @@ void packVictron0x356(uint8_t* data) {
         discharge_limit *= 0.7f;
     }
 
-    // Byte 0-1: Max charge current (A * 10, uint16_t big-endian)
-    uint16_t ichg = (uint16_t)(charge_limit * 10.0f);
-    data[0] = (ichg >> 8) & 0xFF;
-    data[1] = ichg & 0xFF;
-
-    // Byte 2-3: Max discharge current (A * 10, uint16_t big-endian)
-    uint16_t idis = (uint16_t)(discharge_limit * 10.0f);
-    data[2] = (idis >> 8) & 0xFF;
-    data[3] = idis & 0xFF;
-
-    // Byte 4-5: Max charge voltage (V * 10, uint16_t big-endian)
+    // Byte 0-1: Charge voltage limit (0.1V, uint16_t big-endian)
     uint16_t vchg = 4040;  // 404.0V (typical for 96S Leaf pack)
-    data[4] = (vchg >> 8) & 0xFF;
-    data[5] = vchg & 0xFF;
+    data[0] = (vchg >> 8) & 0xFF;
+    data[1] = vchg & 0xFF;
 
-    // Byte 6-7: Min discharge voltage (V * 10, uint16_t big-endian)
+    // Byte 2-3: Charge current limit (0.1A, int16_t big-endian)
+    int16_t ichg = (int16_t)(charge_limit * 10.0f);
+    data[2] = (ichg >> 8) & 0xFF;
+    data[3] = ichg & 0xFF;
+
+    // Byte 4-5: Discharge current limit (0.1A, int16_t big-endian)
+    int16_t idis = (int16_t)(discharge_limit * 10.0f);
+    data[4] = (idis >> 8) & 0xFF;
+    data[5] = idis & 0xFF;
+
+    // Byte 6-7: Discharge voltage limit (0.1V, uint16_t big-endian)
     uint16_t vdis = 2880;  // 288.0V (typical cutoff for 96S)
     data[6] = (vdis >> 8) & 0xFF;
     data[7] = vdis & 0xFF;
+}
+
+// Pack Victron 0x355: State of Charge / State of Health
+void packVictron0x355(uint8_t* data) {
+    // Byte 0-1: SOC (%, uint16_t big-endian)
+    uint16_t soc = (uint16_t)bmsState.soc_percent;
+    data[0] = (soc >> 8) & 0xFF;
+    data[1] = soc & 0xFF;
+
+    // Byte 2-3: SOH (%, uint16_t big-endian)
+    uint16_t soh = (uint16_t)bmsState.soh_percent;
+    data[2] = (soh >> 8) & 0xFF;
+    data[3] = soh & 0xFF;
+
+    // Byte 4-7: Reserved
+    data[4] = 0;
+    data[5] = 0;
+    data[6] = 0;
+    data[7] = 0;
+}
+
+// Pack Victron 0x356: Battery Voltage, Current, Temperature
+void packVictron0x356(uint8_t* data) {
+    // Byte 0-1: Battery voltage (0.01V, uint16_t big-endian)
+    uint16_t voltage = (uint16_t)(bmsState.pack_voltage * 100.0f);
+    data[0] = (voltage >> 8) & 0xFF;
+    data[1] = voltage & 0xFF;
+
+    // Byte 2-3: Battery current (0.1A, int16_t big-endian, positive = discharge)
+    int16_t current = (int16_t)(bmsState.pack_current * 10.0f);
+    data[2] = (current >> 8) & 0xFF;
+    data[3] = current & 0xFF;
+
+    // Byte 4-5: Battery temperature (0.1°C, int16_t big-endian)
+    int16_t temp = (int16_t)(bmsState.temp_avg * 10);
+    data[4] = (temp >> 8) & 0xFF;
+    data[5] = temp & 0xFF;
+
+    // Byte 6-7: Reserved
+    data[6] = 0;
+    data[7] = 0;
 }
 
 // Pack Victron 0x35E: Alarms and warnings
@@ -241,15 +233,15 @@ void packVictron0x35F(uint8_t* data) {
 void sendVictronMessages() {
     uint8_t data[8];
 
-    // 0x351: Battery voltage, current, SOC
+    // 0x351: Charge/discharge limits
     packVictron0x351(data);
     canBus.sendMessage(0x351, data, 8);
 
-    // 0x355: Battery temperatures
+    // 0x355: SOC and SOH
     packVictron0x355(data);
     canBus.sendMessage(0x355, data, 8);
 
-    // 0x356: Charge/discharge limits
+    // 0x356: Voltage, current, temperature
     packVictron0x356(data);
     canBus.sendMessage(0x356, data, 8);
 
@@ -257,7 +249,7 @@ void sendVictronMessages() {
     packVictron0x35E(data);
     canBus.sendMessage(0x35E, data, 8);
 
-    // 0x35F: Manufacturer info (send less frequently)
+    // 0x35F: Battery characteristics (send less frequently)
     static uint32_t last_info_send = 0;
     if (millis() - last_info_send > 5000) {  // Every 5 seconds
         packVictron0x35F(data);
@@ -304,11 +296,11 @@ void setup() {
     Serial.printf("  0x%03X - Charger Status\n", CAN_ID_CHARGER_STATUS);
     Serial.println();
     Serial.println("Publishing Victron protocol messages:");
-    Serial.println("  0x351 - Pack voltage, current, SOC, SOH");
-    Serial.println("  0x355 - Battery temperatures");
-    Serial.println("  0x356 - Charge/discharge limits");
+    Serial.println("  0x351 - Charge/discharge voltage and current limits");
+    Serial.println("  0x355 - State of Charge (SOC) and State of Health (SOH)");
+    Serial.println("  0x356 - Battery voltage, current, and temperature");
     Serial.println("  0x35E - Alarms and warnings");
-    Serial.println("  0x35F - Manufacturer info");
+    Serial.println("  0x35F - Battery characteristics");
     Serial.println();
     Serial.println("Ready to convert Leaf → Victron protocol...");
     Serial.println("==========================================\n");
