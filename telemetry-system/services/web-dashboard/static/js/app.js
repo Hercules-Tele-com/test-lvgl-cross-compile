@@ -561,3 +561,127 @@ function loadDetailsData() {
             console.error('Error loading details:', error);
         });
 }
+
+// ============================================================================
+// Victron BMS Updates
+// ============================================================================
+
+function updateVictronBMS(data) {
+    // Update Victron Pack Status
+    if (data.victron_pack) {
+        const pack = data.victron_pack;
+        updateElement('victronVoltage', pack.voltage?.toFixed(2));
+        updateElement('victronCurrent', pack.current?.toFixed(1));
+        updateElement('victronPower', pack.power_kw?.toFixed(2));
+        updateElement('victronTemp', pack.temperature?.toFixed(1));
+    }
+
+    // Update SOC/SOH
+    if (data.victron_soc) {
+        const soc = data.victron_soc;
+        updateElement('victronSOC', soc.soc_percent);
+        updateElement('victronSOH', soc.soh_percent);
+    }
+
+    // Update Limits
+    if (data.victron_limits) {
+        const limits = data.victron_limits;
+        updateElement('victronChargeVoltageMax', limits.charge_voltage_max?.toFixed(1));
+        updateElement('victronChargeCurrentMax', limits.charge_current_max?.toFixed(1));
+        updateElement('victronDischargeCurrentMax', limits.discharge_current_max?.toFixed(1));
+        updateElement('victronDischargeVoltageMin', limits.discharge_voltage_min?.toFixed(1));
+    }
+
+    // Update Battery Info
+    if (data.victron_characteristics) {
+        const chars = data.victron_characteristics;
+        const cellTypeName = getCellTypeName(chars.cell_type_code);
+        updateElement('victronCellType', cellTypeName);
+        updateElement('victronCellQty', chars.cell_quantity);
+        updateElement('victronCapacity', chars.capacity_ah);
+        updateElement('victronFirmware', `${chars.firmware_major}.${chars.firmware_minor}`);
+    }
+}
+
+function getCellTypeName(code) {
+    const types = {0: 'Unknown', 1: 'LiFePO4', 2: 'NMC'};
+    return types[code] || 'Unknown';
+}
+
+function fetchVictronCells() {
+    fetch('/api/victron/cells')
+        .then(response => response.json())
+        .then(data => {
+            updateCellVoltageDisplay(data.cells);
+        })
+        .catch(error => {
+            console.error('Error fetching cell data:', error);
+        });
+}
+
+function updateCellVoltageDisplay(cells) {
+    const container = document.getElementById('cellVoltageDisplay');
+    if (!container || !cells) return;
+
+    let html = '';
+    for (let i = 0; i < 4; i++) {
+        const moduleKey = `module_${i}`;
+        const module = cells[moduleKey];
+        
+        if (module) {
+            const voltageDelta = module.voltage_delta_mv;
+            const tempDelta = module.temp_delta_c;
+            
+            // Color coding based on voltage imbalance
+            let voltageClass = 'cell-balanced';
+            if (voltageDelta > 100) voltageClass = 'cell-warning';
+            else if (voltageDelta > 50) voltageClass = 'cell-caution';
+            
+            html += `
+                <div class="cell-module ${voltageClass}">
+                    <div class="module-header">Module ${i}</div>
+                    <div class="cell-stats">
+                        <div class="cell-stat">
+                            <span class="stat-label">V Max:</span>
+                            <span class="stat-value">${module.max_voltage_mv}mV</span>
+                        </div>
+                        <div class="cell-stat">
+                            <span class="stat-label">V Min:</span>
+                            <span class="stat-value">${module.min_voltage_mv}mV</span>
+                        </div>
+                        <div class="cell-stat delta">
+                            <span class="stat-label">Δ:</span>
+                            <span class="stat-value">${voltageDelta}mV</span>
+                        </div>
+                    </div>
+                    <div class="cell-temps">
+                        <span class="temp-max">${module.max_temp_c}°C</span>
+                        <span class="temp-sep">|</span>
+                        <span class="temp-min">${module.min_temp_c}°C</span>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    container.innerHTML = html || '<p>No cell data available</p>';
+}
+
+// Call cell data fetch periodically (every 5 seconds)
+setInterval(fetchVictronCells, 5000);
+
+// Update the main updateDashboard function to include Victron updates
+const originalUpdateDashboard = updateDashboard;
+updateDashboard = function(data) {
+    // Call original update function
+    if (typeof originalUpdateDashboard === 'function') {
+        originalUpdateDashboard(data);
+    }
+    
+    // Update Victron BMS displays
+    updateVictronBMS(data);
+};
+
+// Initial cell data fetch
+setTimeout(fetchVictronCells, 2000);
+

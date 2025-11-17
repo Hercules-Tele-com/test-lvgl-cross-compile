@@ -128,6 +128,103 @@
                 </div>
             </div>
 
+            <!-- Victron BMS Section -->
+            <div class="section-header">
+                <h2>⚡ Victron BMS</h2>
+            </div>
+
+            <!-- Victron Pack Status -->
+            <div class="metrics-grid">
+                <div class="metric-card large victron-pack">
+                    <h3>Pack Status</h3>
+                    <div class="victron-pack-display">
+                        <div class="pack-metrics">
+                            <div class="pack-metric">
+                                <span class="label">Voltage</span>
+                                <span class="value" id="victronVoltage">--</span>
+                                <span class="unit">V</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Current</span>
+                                <span class="value" id="victronCurrent">--</span>
+                                <span class="unit">A</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Power</span>
+                                <span class="value" id="victronPower">--</span>
+                                <span class="unit">kW</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Temp</span>
+                                <span class="value" id="victronTemp">--</span>
+                                <span class="unit">°C</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-soc">
+                    <h3>State of Charge</h3>
+                    <div class="value-display">
+                        <div class="value-large" id="victronSOC">--</div>
+                        <div class="value-unit">%</div>
+                        <div class="value-small">SOH: <span id="victronSOH">--</span>%</div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-limits">
+                    <h3>Charge Limits</h3>
+                    <div class="limits-display">
+                        <div class="limit-item">
+                            <span class="label">Charge V:</span>
+                            <span id="victronChargeVoltageMax">--</span> V
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Charge I:</span>
+                            <span id="victronChargeCurrentMax">--</span> A
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Discharge I:</span>
+                            <span id="victronDischargeCurrentMax">--</span> A
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Discharge V:</span>
+                            <span id="victronDischargeVoltageMin">--</span> V
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-info">
+                    <h3>Battery Info</h3>
+                    <div class="info-display">
+                        <div class="info-item">
+                            <span class="label">Type:</span>
+                            <span id="victronCellType">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Cells:</span>
+                            <span id="victronCellQty">--</span>S
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Capacity:</span>
+                            <span id="victronCapacity">--</span> Ah
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Firmware:</span>
+                            <span id="victronFirmware">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cell Voltage Monitoring -->
+            <div class="metric-card large cell-monitoring">
+                <h3>Cell Voltage Extrema</h3>
+                <div id="cellVoltageDisplay" class="cell-voltage-grid">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
             <!-- System Status Row -->
             <div class="metrics-grid">
                 <div class="metric-card small">
