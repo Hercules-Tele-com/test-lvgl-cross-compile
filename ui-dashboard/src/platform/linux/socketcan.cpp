@@ -14,6 +14,26 @@ SocketCANData* socketcan_init(const char* interface) {
     SocketCANData* data = new SocketCANData();
     strncpy(data->interface, interface, sizeof(data->interface) - 1);
 
+    // Automatically bring up CAN interface with 500 kbps bitrate
+    printf("[SocketCAN] Bringing up interface %s...\n", interface);
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "ip link set %s down 2>/dev/null", interface);
+    system(cmd);  // First bring it down to reset state
+
+    snprintf(cmd, sizeof(cmd), "ip link set %s type can bitrate 500000 2>/dev/null", interface);
+    int ret = system(cmd);
+    if (ret != 0) {
+        printf("[SocketCAN] WARNING: Failed to configure %s (may need root privileges)\n", interface);
+    }
+
+    snprintf(cmd, sizeof(cmd), "ip link set %s up 2>/dev/null", interface);
+    ret = system(cmd);
+    if (ret != 0) {
+        printf("[SocketCAN] WARNING: Failed to bring up %s (may need root privileges)\n", interface);
+    } else {
+        printf("[SocketCAN] Interface %s is now UP\n", interface);
+    }
+
     // Create socket
     data->socket_fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (data->socket_fd < 0) {

@@ -32,55 +32,84 @@ CANReceiver::~CANReceiver() {
 void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t* data) {
     const uint32_t baseId = (can_id & 0x7FF); // 11-bit ID
 
-    // 0x351: BMS Pack Basic (voltage, current, SoC)
-    if (baseId == 0x351 && len >= 5) {
-        uint16_t pack_v = (data[0] << 8) | data[1];  // V * 10
-        int16_t pack_i = (data[2] << 8) | data[3];   // A * 10 (signed)
-        uint16_t soc = (data[4] << 8) | data[5];     // % * 10
-        pack_voltage_.store(pack_v, std::memory_order_relaxed);
-        pack_current_.store(pack_i, std::memory_order_relaxed);
+    // 0x351: BMS Battery Limits (Victron protocol)
+    if (baseId == 0x351 && len >= 8) {
+        int16_t chg_v_setpoint = (int16_t)((data[0] << 8) | data[1]);  // V * 10
+        int16_t chg_i_limit = (int16_t)((data[2] << 8) | data[3]);     // A * 10
+        int16_t dis_i_limit = (int16_t)((data[4] << 8) | data[5]);     // A * 10
+        int16_t dis_v_limit = (int16_t)((data[6] << 8) | data[7]);     // V * 10
+        charge_voltage_setpoint_.store(chg_v_setpoint, std::memory_order_relaxed);
+        charge_current_limit_.store(chg_i_limit, std::memory_order_relaxed);
+        discharge_current_limit_.store(dis_i_limit, std::memory_order_relaxed);
+        discharge_voltage_limit_.store(dis_v_limit, std::memory_order_relaxed);
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x351] Limits: ChgV=%.1fV, ChgI=%.1fA, DisI=%.1fA, DisV=%.1fV\n",
+               chg_v_setpoint/10.0f, chg_i_limit/10.0f, dis_i_limit/10.0f, dis_v_limit/10.0f);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x356: BMS Battery Measurements (Victron protocol)
+    else if (baseId == 0x356 && len >= 6) {
+        uint16_t bat_v = (data[0] << 8) | data[1];         // V * 100
+        int16_t bat_i = (int16_t)((data[2] << 8) | data[3]);  // A * 10 (signed)
+        uint16_t bat_t = (data[4] << 8) | data[5];         // °C * 10
+        battery_voltage_.store(bat_v, std::memory_order_relaxed);
+        battery_current_.store(bat_i, std::memory_order_relaxed);
+        battery_temperature_.store(bat_t, std::memory_order_relaxed);
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x356] Measurements: %.2fV, %.1fA, %.1f°C\n",
+               bat_v/100.0f, bat_i/10.0f, bat_t/10.0f);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x355: BMS Battery State (Victron protocol)
+    else if (baseId == 0x355 && len >= 4) {
+        uint16_t soc = (data[0] << 8) | data[1];  // %
+        uint16_t soh = (data[2] << 8) | data[3];  // %
         soc_.store(soc, std::memory_order_relaxed);
-#if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x351] Pack: %.1fV, %.1fA, %.1f%% SoC\n",
-               pack_v/10.0f, pack_i/10.0f, soc/10.0f);
-        fflush(stdout);
-#endif
-    }
-
-    // 0x356: BMS Current Limits
-    else if (baseId == 0x356 && len >= 4) {
-        uint16_t ichg = (data[0] << 8) | data[1];    // A * 2
-        uint16_t idis = (data[2] << 8) | data[3];    // A * 2
-        ichg_max_.store(ichg, std::memory_order_relaxed);
-        idis_max_.store(idis, std::memory_order_relaxed);
-#if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x356] Limits: Chg %.1fA, Dis %.1fA\n",
-               ichg/2.0f, idis/2.0f);
-        fflush(stdout);
-#endif
-    }
-
-    // 0x355: BMS Temperatures
-    else if (baseId == 0x355 && len >= 3) {
-        int8_t t_min = (int8_t)data[0];
-        int8_t t_max = (int8_t)data[1];
-        int8_t t_avg = (int8_t)data[2];
-        temp_min_.store(t_min, std::memory_order_relaxed);
-        temp_max_.store(t_max, std::memory_order_relaxed);
-        temp_avg_.store(t_avg, std::memory_order_relaxed);
-#if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x355] Temps: Min %d°C, Max %d°C, Avg %d°C\n",
-               (int)t_min, (int)t_max, (int)t_avg);
-        fflush(stdout);
-#endif
-    }
-
-    // 0x35F: BMS Limits (SOH)
-    else if (baseId == 0x35F && len >= 7) {
-        uint8_t soh = data[6];  // byte 6
         soh_.store(soh, std::memory_order_relaxed);
 #if CAN_DEBUG || defined(PLATFORM_LINUX)
-        printf("[0x35F] SOH: %u%%\n", (unsigned)soh);
+        printf("[0x355] State: SOC=%u%%, SOH=%u%%\n", soc, soh);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x35F: BMS Characteristics (Victron protocol)
+    else if (baseId == 0x35F && len >= 8) {
+        uint8_t cell_type = data[0];
+        uint8_t cell_qty = data[1];
+        uint8_t fw_major = data[2];
+        uint8_t fw_minor = data[3];
+        uint16_t capacity = (data[4] << 8) | data[5];  // Ah
+        uint16_t mfr_id = (data[6] << 8) | data[7];
+        cell_type_.store(cell_type, std::memory_order_relaxed);
+        cell_quantity_.store(cell_qty, std::memory_order_relaxed);
+        firmware_major_.store(fw_major, std::memory_order_relaxed);
+        firmware_minor_.store(fw_minor, std::memory_order_relaxed);
+        battery_capacity_.store(capacity, std::memory_order_relaxed);
+        manufacturer_id_.store(mfr_id, std::memory_order_relaxed);
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x35F] Characteristics: CellType=%u, Qty=%u, FW=%u.%u, Cap=%uAh, MfrID=%u\n",
+               cell_type, cell_qty, fw_major, fw_minor, capacity, mfr_id);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x370: BMS Cell Extrema (Victron protocol)
+    else if (baseId == 0x370 && len >= 8) {
+        uint16_t max_temp = (data[0] << 8) | data[1];     // °C
+        uint16_t min_temp = (data[2] << 8) | data[3];     // °C
+        uint16_t max_v = (data[4] << 8) | data[5];        // mV (scale 0.001 V)
+        uint16_t min_v = (data[6] << 8) | data[7];        // mV (scale 0.001 V)
+        max_cell_temp_.store(max_temp, std::memory_order_relaxed);
+        min_cell_temp_.store(min_temp, std::memory_order_relaxed);
+        max_cell_voltage_.store(max_v, std::memory_order_relaxed);
+        min_cell_voltage_.store(min_v, std::memory_order_relaxed);
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x370] Cell Extrema: MaxT=%u°C, MinT=%u°C, MaxV=%umV, MinV=%umV\n",
+               max_temp, min_temp, max_v, min_v);
         fflush(stdout);
 #endif
     }
