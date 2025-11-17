@@ -17,10 +17,10 @@ public:
     bool init();
     void update();
 
-    // BMS Pack data (0x351)
-    uint16_t getPackVoltage() const { return pack_voltage_.load(std::memory_order_relaxed); } // V * 10
-    int16_t getPackCurrent() const { return pack_current_.load(std::memory_order_relaxed); }  // A * 10
-    uint16_t getSOC() const { return soc_.load(std::memory_order_relaxed); }                  // % * 10
+    // BMS Pack data (Victron: 0x356 voltage/current, 0x355 SOC)
+    uint16_t getPackVoltage() const { return pack_voltage_.load(std::memory_order_relaxed); } // V * 100 (0.01V)
+    int16_t getPackCurrent() const { return pack_current_.load(std::memory_order_relaxed); }  // A * 10 (0.1A)
+    uint16_t getSOC() const { return soc_.load(std::memory_order_relaxed); }                  // % (0-100)
 
     // BMS Current Limits (0x356)
     uint16_t getChargeCurrentMax() const { return ichg_max_.load(std::memory_order_relaxed); } // A * 2
@@ -60,10 +60,10 @@ public:
 private:
     void* platform_data = nullptr;     // MultiCan* on Linux, MockCANData* on Windows
 
-    // BMS Pack (0x351)
-    std::atomic<uint16_t> pack_voltage_{0};   // V * 10
-    std::atomic<int16_t> pack_current_{0};    // A * 10 (signed)
-    std::atomic<uint16_t> soc_{0};            // % * 10
+    // BMS Pack (Victron: 0x356 voltage/current, 0x355 SOC)
+    std::atomic<uint16_t> pack_voltage_{0};   // V * 100 (0.01V units)
+    std::atomic<int16_t> pack_current_{0};    // A * 10 (0.1A units, signed)
+    std::atomic<uint16_t> soc_{0};            // % (0-100)
 
     // BMS Current Limits (0x356)
     std::atomic<uint16_t> ichg_max_{0};       // A * 2

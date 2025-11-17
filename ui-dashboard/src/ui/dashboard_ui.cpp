@@ -111,23 +111,23 @@ void DashboardUI::init() {
 }
 
 void DashboardUI::update(const CANReceiver& can) {
-    // Get CAN data
-    uint16_t soc_raw = can.getSOC();                  // % * 10
+    // Get CAN data (Victron BMS protocol)
+    uint16_t soc_raw = can.getSOC();                  // % (0-100)
     uint16_t speed_raw = can.getSpeed();              // kph * 100
     uint8_t gear = can.getGear();                     // 0=P, 1=R, 2=N, 3=D, 4=B
     int16_t torque_raw = can.getMotorTorque();        // Nm * 10
-    uint16_t pack_voltage = can.getPackVoltage();     // V * 10
-    int16_t pack_current = can.getPackCurrent();      // A * 10
+    uint16_t pack_voltage_raw = can.getPackVoltage(); // V * 100 (0.01V)
+    int16_t pack_current_raw = can.getPackCurrent();  // A * 10 (0.1A)
     int8_t battery_temp = can.getTempAvg();           // °C
     uint8_t motor_temp = can.getMotorTemp();          // °C
     uint8_t inverter_temp = can.getInverterTemp();    // °C
 
     // Convert scaled values
-    uint8_t soc = soc_raw / 10;                       // % * 10 → %
-    float speed = speed_raw / 10.0f;                   // kph (not scaled)
+    uint8_t soc = (uint8_t)soc_raw;                   // Already 0-100%
+    float speed = speed_raw / 10.0f;                  // kph * 100 → kph
     float torque = torque_raw / 10.0f;                // Nm * 10 → Nm
-    float voltage = pack_voltage / 10.0f;             // V * 10 → V
-    float current = pack_current / 10.0f;             // A * 10 → A
+    float voltage = pack_voltage_raw / 100.0f;        // V * 100 → V
+    float current = pack_current_raw / 10.0f;         // A * 10 → A
     float power = (voltage * current) / 1000.0f;      // kW
 
     // Update UI components
