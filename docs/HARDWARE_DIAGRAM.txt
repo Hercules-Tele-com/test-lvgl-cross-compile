@@ -1,0 +1,320 @@
+================================================================================
+  NISSAN LEAF CAN NETWORK - PERIPHERAL DEVICE CONNECTIVITY DIAGRAM
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          12V VEHICLE BATTERY                                 │
+└────────────┬───────────────────┬───────────────────┬─────────────────────────┘
+             │                   │                   │
+         [Fuse 5A]           [Fuse 5A]           [Fuse 5A]
+             │                   │                   │
+             ▼                   ▼                   ▼
+    ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+    │  T-CAN485 #1   │  │  T-CAN485 #2   │  │  T-CAN485 #3   │
+    │  GPS MODULE    │  │  TEMP MODULE   │  │  RS485 BRIDGE  │
+    ├────────────────┤  ├────────────────┤  ├────────────────┤
+    │ 12V → 3.3V     │  │ 12V → 3.3V     │  │ 12V → 3.3V     │
+    │ (ME2107A50M5G) │  │ (ME2107A50M5G) │  │ (ME2107A50M5G) │
+    └────────────────┘  └────────────────┘  └────────────────┘
+             │                   │                   │
+             │ UART1             │ 1-Wire            │ RS485
+             │ (IO18/19)         │ (IO23)            │ (IO21/22)
+             ▼                   ▼                   ▼
+    ┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+    │  NEO-M8N GPS   │  │  DS18B20 x8    │  │ Modbus Sensors │
+    ├────────────────┤  ├────────────────┤  ├────────────────┤
+    │ • Lat/Lon      │  │ • Motor stator │  │ • Custom temp  │
+    │ • Speed        │  │ • Motor cool   │  │ • Pressure     │
+    │ • Heading      │  │ • Inverter     │  │ • Flow rate    │
+    │ • Altitude     │  │ • Charger      │  │ • etc.         │
+    │ • Satellites   │  │ • Battery      │  │                │
+    └────────────────┘  └────────────────┘  └────────────────┘
+
+             │                   │                   │
+             │ CAN TX            │ CAN TX            │ CAN TX
+             │ 0x710, 0x711      │ 0x720, 0x721      │ 0x730
+             │ @ 1000ms          │ @ 2000ms          │ @ 1000ms
+             │                   │                   │
+             └───────────────────┴───────────────────┘
+                                 │
+                        CAN BUS (500 kbps)
+                  ┌──────────────┴──────────────┐
+                  │ Twisted pair (CAN-H / CAN-L)│
+                  │ 120Ω termination (both ends)│
+                  └──────────────┬──────────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌───────────────┐      ┌──────────────────┐    ┌──────────────────┐
+│ Raspberry Pi  │      │  Leaf Inverter   │    │   Orion BMS      │
+│ Dashboard     │      │  & Motor         │    │                  │
+├───────────────┤      ├──────────────────┤    ├──────────────────┤
+│ • LVGL UI     │      │ 0x1F2: Vehicle   │    │ 0x351: Pack V/I  │
+│ • SocketCAN   │      │ 0x1D4: Motor     │    │ 0x355: Cell V1   │
+│ • Waveshare   │      │ 0x1DB: Pedal     │    │ 0x356: Cell V2   │
+│   CAN HAT     │      │ 0x1DC: Brake     │    │ 0x35F: Pack temp │
+│               │      │ 0x1DA: Steering  │    │                  │
+└───────────────┘      └──────────────────┘    └──────────────────┘
+        │
+        │ HDMI/DSI
+        ▼
+┌───────────────┐
+│  800x480 LCD  │
+│  Display      │
+└───────────────┘
+
+================================================================================
+                          DETAILED MODULE PINOUTS
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ MODULE 1: GPS POSITION TRACKER                                           │
+│ Board: LilyGO T-CAN485                                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+    T-CAN485 ESP32                    NEO-M8N GPS Module
+    ┌─────────────────┐               ┌─────────────────┐
+    │ 3.3V     ├──────────────────────┤ VCC             │
+    │ GND      ├──────────────────────┤ GND             │
+    │          │                      │                 │
+    │ IO18 (RX)├──────────────────────┤ TX              │
+    │ IO19 (TX)├──────────────────────┤ RX              │
+    │          │                      │                 │
+    │ CAN-H    ├─────┐                │ [External       │
+    │ CAN-L    ├─────┤                │  antenna]       │
+    │          │     │                └─────────────────┘
+    │ 12V IN   │     │
+    │ (terminal)     │
+    └─────────────────┘
+                │
+                │ Twisted pair to CAN bus
+                └──► To main CAN network
+
+    Software:
+    - HardwareSerial(1) at 9600 baud (RX=18, TX=19)
+    - TinyGPSPlus library for NMEA parsing
+    - Publishes 0x710 (position) and 0x711 (velocity)
+    - 120Ω termination resistor if first node
+
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ MODULE 2: TEMPERATURE SENSOR ARRAY                                       │
+│ Board: LilyGO T-CAN485                                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+    T-CAN485 ESP32                    DS18B20 Sensors (x8)
+    ┌─────────────────┐
+    │ 3.3V     ├─────────┬─────┬─────┬───── (All VDD pins)
+    │ GND      ├─────────┼─────┼─────┼───── (All GND pins)
+    │          │         │     │     │
+    │ IO23 (DQ)├─────────┴─────┴─────┴───── (All DQ pins)
+    │          │              ▲
+    │          │              │
+    │ CAN-H    ├─────┐        └── 4.7kΩ pull-up to 3.3V
+    │ CAN-L    ├─────┤
+    │          │     │
+    │ 12V IN   │     │
+    │ (terminal)     │
+    └─────────────────┘
+                │
+                └──► To main CAN network
+
+    Sensor Mapping (example):
+    1. Motor stator winding      - Address: 28:AA:BB:CC:DD:EE:FF:01
+    2. Motor coolant inlet        - Address: 28:AA:BB:CC:DD:EE:FF:02
+    3. Motor coolant outlet       - Address: 28:AA:BB:CC:DD:EE:FF:03
+    4. Inverter IGBT heatsink     - Address: 28:AA:BB:CC:DD:EE:FF:04
+    5. Inverter coolant inlet     - Address: 28:AA:BB:CC:DD:EE:FF:05
+    6. Inverter coolant outlet    - Address: 28:AA:BB:CC:DD:EE:FF:06
+    7. Charger heatsink           - Address: 28:AA:BB:CC:DD:EE:FF:07
+    8. Battery coolant            - Address: 28:AA:BB:CC:DD:EE:FF:08
+
+    Software:
+    - OneWire library on GPIO 23
+    - DallasTemperature library
+    - 12-bit resolution (0.0625°C accuracy)
+    - Publishes 0x720 (temps 1-4) and 0x721 (temps 5-8)
+
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ MODULE 3: RS485 SENSOR BRIDGE                                            │
+│ Board: LilyGO T-CAN485                                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+
+    T-CAN485 ESP32                    RS485 Bus
+    ┌─────────────────┐               ┌─────────────────┐
+    │ IO22 (TX)├─────────────────MAX13487    │
+    │ IO21 (RX)├─────────────────EESA+       │
+    │ IO9 (EN) ├─────────────────TX Enable   │
+    │          │                      │       │
+    │ A+       ├──────────────────────┤ A+    │──► RS485 network
+    │ B-       ├──────────────────────┤ B-    │    (Modbus RTU)
+    │ GND      ├──────────────────────┤ GND   │
+    │          │                      └───────┘
+    │ CAN-H    ├─────┐
+    │ CAN-L    ├─────┤
+    │          │     │
+    │ 12V IN   │     │
+    │ (terminal)     │
+    └─────────────────┘
+                │
+                └──► To main CAN network (120Ω termination if last node)
+
+    RS485 Configuration:
+    - Baud: 9600, 8N1 (configurable)
+    - Protocol: Modbus RTU
+    - Half-duplex (EN pin toggles TX/RX)
+    - Supports up to 32 slave devices on bus
+
+    Software:
+    - HardwareSerial(2) at 9600 baud (RX=21, TX=22)
+    - ModbusRTU library
+    - Polls slave devices every 1 second
+    - Publishes 0x730 (aggregated sensor data)
+
+
+================================================================================
+                          CAN BUS MESSAGE FLOW
+================================================================================
+
+Time (ms)  │  CAN ID  │  Source           │  Data
+───────────┼──────────┼───────────────────┼─────────────────────────────────
+    0      │  0x1DB   │  Leaf VCM         │  Accelerator pedal position
+   10      │  0x1DC   │  Leaf VCM         │  Brake switch state
+  100      │  0x1F2   │  Leaf PDM         │  Vehicle speed, gear position
+  100      │  0x1D4   │  Leaf Inverter    │  Motor temp, torque, RPM
+  100      │  0x351   │  Orion BMS        │  Pack voltage, current, SOC
+  200      │  0x355   │  Orion BMS        │  Cell voltages (pack 1)
+  200      │  0x356   │  Orion BMS        │  Cell voltages (pack 2)
+  500      │  0x390   │  Leaf BMS         │  SOC low precision
+ 1000      │  0x35F   │  Orion BMS        │  Pack temperatures
+ 1000      │  0x710   │  GPS Module       │  Latitude, Longitude
+ 1000      │  0x711   │  GPS Module       │  Speed, Heading, Altitude
+ 1000      │  0x730   │  RS485 Bridge     │  External sensor data
+ 2000      │  0x720   │  Temp Module      │  Temps 1-4 (motor/inverter)
+ 2000      │  0x721   │  Temp Module      │  Temps 5-8 (coolant/battery)
+
+CAN Bus Utilization (worst case):
+  - 500 kbps nominal bitrate
+  - Max message: 128 bits (CAN 2.0B extended frame)
+  - ~15 messages/sec average = ~1920 bits/sec
+  - Utilization: ~0.38% (very low, excellent margin)
+
+
+================================================================================
+                          PHYSICAL INSTALLATION
+================================================================================
+
+Vehicle Location          │  Component
+──────────────────────────┼─────────────────────────────────────────────────
+Dashboard (A-pillar)      │  GPS Module (T-CAN485 + NEO-M8N)
+                          │  - GPS antenna on roof/dash
+                          │  - Clear sky view for satellite lock
+                          │
+Motor compartment         │  Temp Module (T-CAN485 + DS18B20 x8)
+                          │  - DS18B20 #1: Motor stator (bolt-on)
+                          │  - DS18B20 #2-3: Coolant pipes (hose clamps)
+                          │  - DS18B20 #4: Inverter heatsink (thermal paste)
+                          │  - DS18B20 #5-6: Inverter coolant (hose clamps)
+                          │  - DS18B20 #7: Charger heatsink (bolt-on)
+                          │  - DS18B20 #8: Battery coolant (hose clamp)
+                          │
+Battery enclosure         │  RS485 Bridge (T-CAN485)
+                          │  - RS485 bus to BMS/battery sensors
+                          │  - Alternative: external sensor cluster
+                          │
+Center console            │  Raspberry Pi Dashboard
+                          │  - LVGL 800x480 touchscreen
+                          │  - Waveshare CAN HAT
+                          │  - 5V USB-C power
+                          │
+Existing CAN network      │  Orion BMS, Leaf Inverter, Leaf PDM
+                          │  - No modifications needed
+
+
+================================================================================
+                          WIRE ROUTING DIAGRAM
+================================================================================
+
+┌─ Engine Bay ────────────────────┐        ┌─ Dashboard ─────────────────┐
+│                                 │        │                             │
+│  [Motor/Inverter]               │        │  ┌──────────────┐           │
+│        │                        │        │  │ Raspberry Pi │           │
+│        │ CAN-H/L (2m)           │        │  │  + LCD       │           │
+│        └─────────┐              │        │  └──────┬───────┘           │
+│                  │              │        │         │                   │
+│  [Temp Module]   │              │        │         │ CAN-H/L (1m)      │
+│        │         │              │        │         │                   │
+│        │ Power (2m)             │        │  ┌──────┴────────┐          │
+│        └─────────┼──────────────┼────────┼──┤  CAN Bus      │          │
+│                  │              │        │  │  Junction     │          │
+│  [GPS Module]    │              │        │  │  (terminal    │          │
+│        │         │              │        │  │   block)      │          │
+│        │ CAN-H/L (3m)           │        │  └──────┬────────┘          │
+│        │ Power (3m)             │        │         │                   │
+│        └─────────┘              │        │         │ CAN-H/L (0.5m)    │
+│                                 │        │         │                   │
+└─────────────────────────────────┘        │  [GPS Module]               │
+                                           │                             │
+┌─ Battery Box ───────────────────┐        └─────────────────────────────┘
+│                                 │
+│  [Orion BMS]                    │
+│        │                        │
+│        │ CAN-H/L (2m)           │
+│        │                        │
+│  [RS485 Bridge]                 │
+│        │                        │
+│        │ CAN-H/L (2m)           │
+│        │ Power (2m)             │
+│        │ RS485 A+/B- (5m)       │
+│        │                        │
+│        └─────────┐              │
+└──────────────────┼──────────────┘
+                   │
+                   └──► To dashboard junction
+
+
+Wire Specifications:
+  - CAN Bus: 24AWG twisted pair, shielded (Belden 3105A or equivalent)
+  - Power: 18AWG stranded, automotive rated
+  - 120Ω termination resistors at GPS module and Dashboard
+  - Ferrite beads on CAN wires near ECUs (EMI suppression)
+
+
+================================================================================
+                          TROUBLESHOOTING GUIDE
+================================================================================
+
+Problem: GPS not acquiring satellites
+  ✓ Check antenna placement (needs clear sky view)
+  ✓ Verify 3.3V power to GPS module
+  ✓ Monitor UART output: should see $GPGGA NMEA sentences
+  ✓ Allow 2-5 minutes for cold start lock
+
+Problem: Temperature sensors not detected
+  ✓ Verify 4.7kΩ pull-up resistor on 1-Wire bus
+  ✓ Check sensor power (3.3V between VDD and GND)
+  ✓ Run discovery sketch to print sensor addresses
+  ✓ Maximum 8 sensors per bus (use separate GPIO for more)
+
+Problem: CAN messages not appearing
+  ✓ Verify 120Ω termination at both ends of bus
+  ✓ Check CAN-H and CAN-L not swapped
+  ✓ Measure voltage: CAN-H ~3.5V, CAN-L ~1.5V (idle)
+  ✓ Run `candump can0` on Raspberry Pi to verify traffic
+
+Problem: RS485 communication errors
+  ✓ Check A+/B- polarity (swap if needed)
+  ✓ Verify TX enable (IO9) toggles correctly
+  ✓ Confirm baud rate matches slave devices
+  ✓ Use oscilloscope to verify differential signal
+
+Problem: Dashboard not updating
+  ✓ Check SocketCAN interface: `ip -d link show can0`
+  ✓ Verify CAN bitrate: 500000 (not 500k)
+  ✓ Monitor syslog for CAN errors: `journalctl -u leaf-dashboard`
+  ✓ Check LVGL task handler in main loop
+
+
+================================================================================
