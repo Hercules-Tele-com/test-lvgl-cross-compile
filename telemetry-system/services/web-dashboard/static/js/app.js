@@ -685,3 +685,59 @@ updateDashboard = function(data) {
 // Initial cell data fetch
 setTimeout(fetchVictronCells, 2000);
 
+
+
+// ============================================================================
+// Energy Flow Diagram (Phase 2)
+// ============================================================================
+
+function updateEnergyFlow(data) {
+    // Get power data from Victron BMS
+    const victronPack = data.victron_pack;
+    const charger = data.charger;
+
+    if (!victronPack) return;
+
+    const power = victronPack.power_kw || 0;  // kW (positive = discharge, negative = charge)
+    const isCharging = charger && charger.charging_flag === 1;
+
+    // Hide all arrows first
+    document.getElementById('flowToMotor').setAttribute('opacity', '0');
+    document.getElementById('flowFromCharger').setAttribute('opacity', '0');
+    document.getElementById('flowFromMotor').setAttribute('opacity', '0');
+
+    if (isCharging) {
+        // Charging: Show charger to battery arrow
+        document.getElementById('flowFromCharger').setAttribute('opacity', '1');
+        const chargePower = Math.abs(power);
+        document.getElementById('powerFromCharger').textContent = chargePower.toFixed(2) + ' kW';
+    } else if (power > 0.1) {
+        // Discharging: Show battery to motor arrow
+        document.getElementById('flowToMotor').setAttribute('opacity', '1');
+        document.getElementById('powerToMotor').textContent = power.toFixed(2) + ' kW';
+    } else if (power < -0.1) {
+        // Regenerating: Show motor to battery arrow
+        document.getElementById('flowFromMotor').setAttribute('opacity', '1');
+        const regenPower = Math.abs(power);
+        document.getElementById('powerFromMotor').textContent = regenPower.toFixed(2) + ' kW';
+    }
+
+    // Update energy statistics (placeholder - would need backend calculation)
+    // For now, just show current power direction
+    updateElement('energyConsumed', '--');
+    updateElement('energyRegen', '--');
+    updateElement('energyNet', '--');
+    updateElement('energyEfficiency', '--');
+}
+
+// Hook into existing updateDashboard function for energy flow
+const originalUpdateDashboard2 = updateDashboard;
+updateDashboard = function(data) {
+    // Call original update function
+    if (typeof originalUpdateDashboard2 === 'function') {
+        originalUpdateDashboard2(data);
+    }
+
+    // Update energy flow diagram
+    updateEnergyFlow(data);
+};
