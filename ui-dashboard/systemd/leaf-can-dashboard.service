@@ -7,8 +7,8 @@ Wants=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/home/user/test-lvgl-cross-compile/ui-dashboard/build
-ExecStart=/home/user/test-lvgl-cross-compile/ui-dashboard/build/leaf-can-dashboard
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/ui-dashboard/build
+ExecStart=/home/emboo/Projects/test-lvgl-cross-compile/ui-dashboard/build/leaf-can-dashboard
 Restart=always
 RestartSec=5
 StandardOutput=journal
