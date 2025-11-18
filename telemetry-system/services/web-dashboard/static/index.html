@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nissan Leaf Dashboard</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <div class="container">
@@ -23,6 +25,9 @@
         <nav class="tabs">
             <button class="tab active" data-tab="dashboard">Dashboard</button>
             <button class="tab" data-tab="history">Historical Data</button>
+            <button class="tab" data-tab="trips">Trips</button>
+            <button class="tab" data-tab="map">GPS Map</button>
+            <button class="tab" data-tab="export">Export Data</button>
             <button class="tab" data-tab="details">Details</button>
         </nav>
 
@@ -417,6 +422,164 @@
                 <div class="detail-section">
                     <h3>GPS</h3>
                     <pre id="detailsGps">Loading...</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trips Tab -->
+        <div id="trips" class="tab-content">
+            <h2>Trip Statistics</h2>
+
+            <!-- Current Trip -->
+            <div class="section-header">
+                <h3>Current Trip</h3>
+            </div>
+            <div id="currentTripContainer">
+                <div class="metric-card large" id="currentTripCard">
+                    <div class="trip-status" id="tripStatus">No active trip</div>
+                    <div class="trip-metrics-grid" id="currentTripMetrics" style="display: none;">
+                        <div class="trip-metric">
+                            <span class="label">Duration</span>
+                            <span class="value" id="tripDuration">--</span>
+                            <span class="unit">min</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Distance</span>
+                            <span class="value" id="tripDistance">--</span>
+                            <span class="unit">km</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Energy Used</span>
+                            <span class="value" id="tripEnergyConsumed">--</span>
+                            <span class="unit">kWh</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Energy Regen</span>
+                            <span class="value" id="tripEnergyRegen">--</span>
+                            <span class="unit">kWh</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Avg Speed</span>
+                            <span class="value" id="tripAvgSpeed">--</span>
+                            <span class="unit">km/h</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Efficiency</span>
+                            <span class="value" id="tripEfficiency">--</span>
+                            <span class="unit">Wh/km</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Trips -->
+            <div class="section-header">
+                <h3>Recent Trips</h3>
+            </div>
+            <div class="trips-table-container">
+                <table class="trips-table" id="recentTripsTable">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Duration</th>
+                            <th>Distance</th>
+                            <th>Avg Speed</th>
+                            <th>Energy Used</th>
+                            <th>Energy Regen</th>
+                            <th>Efficiency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTripsBody">
+                        <tr>
+                            <td colspan="7" class="no-data">No trips recorded yet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- GPS Map Tab -->
+        <div id="map" class="tab-content">
+            <h2>GPS Map</h2>
+            <div class="map-controls">
+                <label>
+                    <input type="checkbox" id="showRouteCheckbox" checked>
+                    Show route history
+                </label>
+                <label>
+                    Route duration:
+                    <select id="routeDurationSelect">
+                        <option value="1h">Last 1 hour</option>
+                        <option value="6h" selected>Last 6 hours</option>
+                        <option value="24h">Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                    </select>
+                </label>
+                <button id="centerMapButton">Center on Vehicle</button>
+                <button id="refreshRouteButton">Refresh Route</button>
+            </div>
+            <div id="gpsMap" class="gps-map-container"></div>
+            <div class="map-info">
+                <span>Current Position: <strong id="mapCurrentPosition">--</strong></span>
+                <span>Altitude: <strong id="mapAltitude">--</strong> m</span>
+                <span>Satellites: <strong id="mapSatellites">--</strong></span>
+            </div>
+        </div>
+
+        <!-- Export Data Tab -->
+        <div id="export" class="tab-content">
+            <h2>Export Data</h2>
+            <div class="export-container">
+                <div class="export-section">
+                    <h3>Select Data to Export</h3>
+                    <div class="export-options">
+                        <label>
+                            Measurement:
+                            <select id="exportMeasurement">
+                                <option value="all">All Measurements</option>
+                                <option value="inverter_telemetry">Inverter Telemetry</option>
+                                <option value="battery_state">Battery State</option>
+                                <option value="motor_state">Motor State</option>
+                                <option value="gps_position">GPS Position</option>
+                                <option value="victron_pack">Victron Pack</option>
+                                <option value="victron_soc">Victron SOC/SOH</option>
+                                <option value="trips">Trip Data</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3>Time Range</h3>
+                    <div class="export-options">
+                        <label>
+                            Start Time:
+                            <input type="datetime-local" id="exportStartTime">
+                        </label>
+                        <label>
+                            End Time:
+                            <input type="datetime-local" id="exportEndTime">
+                        </label>
+                        <div class="quick-range-buttons">
+                            <button class="range-btn" data-hours="1">Last Hour</button>
+                            <button class="range-btn" data-hours="6">Last 6 Hours</button>
+                            <button class="range-btn" data-hours="24">Last 24 Hours</button>
+                            <button class="range-btn" data-hours="168">Last Week</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3>Export Format</h3>
+                    <div class="export-buttons">
+                        <button id="exportCsvButton" class="export-btn csv">
+                            <span>Download CSV</span>
+                        </button>
+                        <button id="exportJsonButton" class="export-btn json">
+                            <span>Download JSON</span>
+                        </button>
+                    </div>
+                    <div id="exportStatus" class="export-status"></div>
                 </div>
             </div>
         </div>

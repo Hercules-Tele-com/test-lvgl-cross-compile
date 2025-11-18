@@ -667,3 +667,345 @@ body {
     color: #aaa;
     margin-top: 4px;
 }
+
+/* ============================================================================
+   Trip Statistics Styles
+   ============================================================================ */
+
+.trip-status {
+    font-size: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 30px;
+}
+
+.trip-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    padding: 20px;
+}
+
+.trip-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    background: rgba(68, 170, 255, 0.1);
+    border: 1px solid rgba(68, 170, 255, 0.3);
+    border-radius: 8px;
+}
+
+.trip-metric .label {
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.trip-metric .value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #44aaff;
+}
+
+.trip-metric .unit {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin-top: 4px;
+}
+
+.trips-table-container {
+    overflow-x: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.trips-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--text-primary);
+}
+
+.trips-table thead {
+    background: rgba(0, 255, 136, 0.1);
+    border-bottom: 2px solid var(--accent-green);
+}
+
+.trips-table th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-green);
+}
+
+.trips-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.trips-table tbody tr:hover {
+    background: rgba(0, 255, 136, 0.05);
+}
+
+.trips-table .no-data {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .trip-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .trips-table {
+        font-size: 0.85rem;
+    }
+
+    .trips-table th,
+    .trips-table td {
+        padding: 8px;
+    }
+}
+
+/* ============================================================================
+   GPS Map Styles
+   ============================================================================ */
+
+.map-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.map-controls label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+}
+
+.map-controls input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.map-controls select {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.map-controls button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.map-controls button:hover {
+    border-color: var(--accent-green);
+    background: var(--accent-green);
+    color: var(--bg-primary);
+}
+
+.gps-map-container {
+    width: 100%;
+    height: 600px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.map-info {
+    display: flex;
+    gap: 30px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 20px;
+    color: var(--text-secondary);
+}
+
+.map-info strong {
+    color: var(--accent-green);
+}
+
+@media (max-width: 768px) {
+    .map-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .gps-map-container {
+        height: 400px;
+    }
+
+    .map-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+/* ============================================================================
+   Export Data Styles
+   ============================================================================ */
+
+.export-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.export-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+}
+
+.export-section h3 {
+    font-size: 1.2rem;
+    color: var(--accent-green);
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.export-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.export-options label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.export-options input[type="datetime-local"],
+.export-options select {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.export-options input[type="datetime-local"]:focus,
+.export-options select:focus {
+    outline: none;
+    border-color: var(--accent-green);
+}
+
+.quick-range-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.export-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.export-btn {
+    background: var(--accent-green);
+    border: none;
+    color: var(--bg-primary);
+    padding: 15px 40px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.export-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.export-btn.csv {
+    background: var(--accent-blue);
+}
+
+.export-btn.csv:hover {
+    box-shadow: 0 4px 12px rgba(0, 180, 216, 0.3);
+}
+
+.export-btn.json {
+    background: var(--accent-orange);
+}
+
+.export-btn.json:hover {
+    box-shadow: 0 4px 12px rgba(255, 136, 0, 0.3);
+}
+
+.export-status {
+    text-align: center;
+    padding: 15px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+.export-status.success {
+    background: rgba(0, 255, 136, 0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
+    color: var(--accent-green);
+}
+
+.export-status.error {
+    background: rgba(255, 68, 68, 0.1);
+    border: 1px solid rgba(255, 68, 68, 0.3);
+    color: var(--accent-red);
+}
+
+.export-status.info {
+    background: rgba(68, 170, 255, 0.1);
+    border: 1px solid rgba(68, 170, 255, 0.3);
+    color: var(--accent-blue);
+}
+
+@media (max-width: 768px) {
+    .export-buttons {
+        flex-direction: column;
+    }
+
+    .export-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

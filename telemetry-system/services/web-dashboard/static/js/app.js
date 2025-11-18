@@ -741,3 +741,346 @@ updateDashboard = function(data) {
     // Update energy flow diagram
     updateEnergyFlow(data);
 };
+
+// ============================================================================
+// Trip Statistics (Phase 3)
+// ============================================================================
+
+let tripRefreshInterval = null;
+
+function initTripsTab() {
+    loadCurrentTrip();
+    loadRecentTrips();
+
+    // Auto-refresh every 5 seconds when on trips tab
+    tripRefreshInterval = setInterval(() => {
+        const tripsTab = document.getElementById('trips');
+        if (tripsTab && tripsTab.classList.contains('active')) {
+            loadCurrentTrip();
+            loadRecentTrips();
+        }
+    }, 5000);
+}
+
+function loadCurrentTrip() {
+    fetch('/api/trips/current')
+        .then(response => response.json())
+        .then(data => {
+            updateCurrentTripDisplay(data);
+        })
+        .catch(error => {
+            console.error('Error fetching current trip:', error);
+        });
+}
+
+function updateCurrentTripDisplay(data) {
+    const tripStatus = document.getElementById('tripStatus');
+    const tripMetrics = document.getElementById('currentTripMetrics');
+
+    if (data.status === 'no_active_trip' || !data.trip_id) {
+        tripStatus.textContent = 'No active trip';
+        tripStatus.style.display = 'block';
+        tripMetrics.style.display = 'none';
+    } else {
+        tripStatus.style.display = 'none';
+        tripMetrics.style.display = 'grid';
+
+        const metrics = data.metrics || {};
+        updateElement('tripDuration', (data.duration_minutes || 0).toFixed(1));
+        updateElement('tripDistance', (metrics.distance_km || 0).toFixed(2));
+        updateElement('tripEnergyConsumed', (metrics.energy_consumed_kwh || 0).toFixed(2));
+        updateElement('tripEnergyRegen', (metrics.energy_regen_kwh || 0).toFixed(2));
+        updateElement('tripAvgSpeed', (metrics.avg_speed_kmh || 0).toFixed(1));
+        updateElement('tripEfficiency', Math.round(metrics.efficiency_wh_per_km || 0));
+    }
+}
+
+function loadRecentTrips() {
+    fetch('/api/trips/recent?limit=20')
+        .then(response => response.json())
+        .then(data => {
+            updateRecentTripsTable(data.trips || []);
+        })
+        .catch(error => {
+            console.error('Error fetching recent trips:', error);
+        });
+}
+
+function updateRecentTripsTable(trips) {
+    const tbody = document.getElementById('recentTripsBody');
+    if (!tbody) return;
+
+    if (trips.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="no-data">No trips recorded yet</td></tr>';
+        return;
+    }
+
+    let html = '';
+    trips.forEach(trip => {
+        const endTime = new Date(trip.end_time);
+        html += `
+            <tr>
+                <td>${endTime.toLocaleString()}</td>
+                <td>${(trip.duration_minutes || 0).toFixed(0)} min</td>
+                <td>${(trip.distance_km || 0).toFixed(2)} km</td>
+                <td>${(trip.avg_speed_kmh || 0).toFixed(1)} km/h</td>
+                <td>${(trip.energy_consumed_kwh || 0).toFixed(2)} kWh</td>
+                <td>${(trip.energy_regen_kwh || 0).toFixed(2)} kWh</td>
+                <td>${Math.round(trip.efficiency_wh_per_km || 0)} Wh/km</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+// ============================================================================
+// GPS Map (Phase 5)
+// ============================================================================
+
+let gpsMap = null;
+let vehicleMarker = null;
+let routePolyline = null;
+let lastGpsPosition = null;
+
+function initGPSMap() {
+    // Initialize Leaflet map
+    if (!gpsMap) {
+        gpsMap = L.map('gpsMap').setView([0, 0], 13);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(gpsMap);
+
+        // Create vehicle marker
+        vehicleMarker = L.marker([0, 0], {
+            icon: L.divIcon({
+                className: 'vehicle-marker',
+                html: '🚗',
+                iconSize: [30, 30]
+            })
+        }).addTo(gpsMap);
+
+        // Setup map controls
+        document.getElementById('centerMapButton').addEventListener('click', centerMapOnVehicle);
+        document.getElementById('refreshRouteButton').addEventListener('click', loadGPSRoute);
+        document.getElementById('showRouteCheckbox').addEventListener('change', toggleRouteDisplay);
+        document.getElementById('routeDurationSelect').addEventListener('change', loadGPSRoute);
+    }
+
+    // Load initial GPS data
+    updateGPSPosition();
+    loadGPSRoute();
+
+    // Auto-update every 5 seconds
+    setInterval(() => {
+        const mapTab = document.getElementById('map');
+        if (mapTab && mapTab.classList.contains('active')) {
+            updateGPSPosition();
+        }
+    }, 5000);
+}
+
+function updateGPSPosition() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.gps_position) {
+                const lat = data.gps_position.latitude;
+                const lon = data.gps_position.longitude;
+                const alt = data.gps_position.altitude_m || 0;
+                const sats = data.gps_position.satellites || 0;
+
+                if (lat && lon) {
+                    lastGpsPosition = [lat, lon];
+                    vehicleMarker.setLatLng([lat, lon]);
+
+                    // Update map info
+                    updateElement('mapCurrentPosition', `${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+                    updateElement('mapAltitude', alt.toFixed(1));
+                    updateElement('mapSatellites', sats);
+
+                    // Center map on first position
+                    if (gpsMap.getZoom() === 13) {
+                        gpsMap.setView([lat, lon], 15);
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error updating GPS position:', error);
+        });
+}
+
+function loadGPSRoute() {
+    const duration = document.getElementById('routeDurationSelect').value;
+
+    fetch(`/api/gps/track?duration=${duration}`)
+        .then(response => response.json())
+        .then(data => {
+            displayGPSRoute(data.track || []);
+        })
+        .catch(error => {
+            console.error('Error loading GPS route:', error);
+        });
+}
+
+function displayGPSRoute(trackPoints) {
+    // Remove existing route
+    if (routePolyline) {
+        gpsMap.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+
+    if (trackPoints.length === 0) return;
+
+    // Create polyline from track points
+    const latLngs = trackPoints.map(point => [point.latitude, point.longitude]);
+
+    routePolyline = L.polyline(latLngs, {
+        color: '#00ff88',
+        weight: 4,
+        opacity: 0.7
+    }).addTo(gpsMap);
+
+    // Fit map to route bounds if we have multiple points
+    if (latLngs.length > 1) {
+        gpsMap.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+    }
+}
+
+function centerMapOnVehicle() {
+    if (lastGpsPosition) {
+        gpsMap.setView(lastGpsPosition, 15);
+    }
+}
+
+function toggleRouteDisplay() {
+    const showRoute = document.getElementById('showRouteCheckbox').checked;
+    if (routePolyline) {
+        routePolyline.setStyle({ opacity: showRoute ? 0.7 : 0 });
+    }
+}
+
+// ============================================================================
+// Data Export (Phase 6)
+// ============================================================================
+
+function initExportTab() {
+    // Set default time range (last 24 hours)
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    document.getElementById('exportStartTime').value = formatDateTimeLocal(yesterday);
+    document.getElementById('exportEndTime').value = formatDateTimeLocal(now);
+
+    // Quick range buttons
+    const quickRangeButtons = document.querySelectorAll('.quick-range-buttons .range-btn');
+    quickRangeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const hours = parseInt(btn.getAttribute('data-hours'));
+            const endTime = new Date();
+            const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+
+            document.getElementById('exportStartTime').value = formatDateTimeLocal(startTime);
+            document.getElementById('exportEndTime').value = formatDateTimeLocal(endTime);
+        });
+    });
+
+    // Export buttons
+    document.getElementById('exportCsvButton').addEventListener('click', () => exportData('csv'));
+    document.getElementById('exportJsonButton').addEventListener('click', () => exportData('json'));
+}
+
+function formatDateTimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function exportData(format) {
+    const measurement = document.getElementById('exportMeasurement').value;
+    const startTime = document.getElementById('exportStartTime').value;
+    const endTime = document.getElementById('exportEndTime').value;
+    const statusDiv = document.getElementById('exportStatus');
+
+    if (!startTime || !endTime) {
+        statusDiv.textContent = 'Please select both start and end times';
+        statusDiv.className = 'export-status error';
+        return;
+    }
+
+    // Show loading status
+    statusDiv.textContent = 'Preparing export...';
+    statusDiv.className = 'export-status info';
+
+    // Build API URL
+    const params = new URLSearchParams({
+        measurement: measurement,
+        start: startTime,
+        end: endTime
+    });
+
+    const apiUrl = `/api/export/${format}?${params.toString()}`;
+
+    // Download file
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `telemetry_${measurement}_${Date.now()}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            // Show success
+            statusDiv.textContent = `Export successful! File downloaded.`;
+            statusDiv.className = 'export-status success';
+        })
+        .catch(error => {
+            console.error('Export error:', error);
+            statusDiv.textContent = `Export failed: ${error.message}`;
+            statusDiv.className = 'export-status error';
+        });
+}
+
+// ============================================================================
+// Enhanced Tab Initialization
+// ============================================================================
+
+// Update initTabs to handle new tabs
+const originalInitTabs = initTabs;
+initTabs = function() {
+    originalInitTabs();
+
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.getAttribute('data-tab');
+
+            // Load data for specific tabs
+            if (targetTab === 'trips') {
+                initTripsTab();
+            } else if (targetTab === 'map') {
+                initGPSMap();
+            } else if (targetTab === 'export') {
+                initExportTab();
+            }
+        });
+    });
+};
