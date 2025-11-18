@@ -16,13 +16,12 @@ import requests
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.query_api import QueryApi
 
-# Setup logging
+# Setup logging (systemd will capture stdout to journal)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/cloud-sync.log')
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)

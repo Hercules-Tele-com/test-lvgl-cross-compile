@@ -39,13 +39,12 @@ CAN_ID_VICTRON_CELLS_1 = 0x371   # Cell module 1 extrema
 CAN_ID_VICTRON_CELLS_2 = 0x372   # Cell module 2 extrema
 CAN_ID_VICTRON_CELLS_3 = 0x373   # Cell module 3 extrema
 
-# Setup logging
+# Setup logging (systemd will capture stdout to journal)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/telemetry-logger.log')
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
