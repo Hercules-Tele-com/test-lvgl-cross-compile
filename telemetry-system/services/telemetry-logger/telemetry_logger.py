@@ -53,10 +53,12 @@ logger = logging.getLogger(__name__)
 class CANTelemetryLogger:
     """CAN to InfluxDB telemetry logger"""
 
-    def __init__(self, can_interface: str = "can0"):
-        self.can_interface = can_interface
+    def __init__(self, can_interfaces: list = None):
+        if can_interfaces is None:
+            can_interfaces = ["can0"]
+        self.can_interfaces = can_interfaces
         self.running = False
-        self.bus: Optional[can.Bus] = None
+        self.buses: list = []  # List of CAN bus instances
         self.influx_client: Optional[InfluxDBClient] = None
         self.write_api = None
 
@@ -78,14 +80,16 @@ class CANTelemetryLogger:
     def init(self) -> bool:
         """Initialize CAN bus and InfluxDB connection"""
         try:
-            # Initialize CAN bus
-            logger.info(f"Initializing CAN interface: {self.can_interface}")
-            self.bus = can.Bus(
-                interface='socketcan',
-                channel=self.can_interface,
-                bitrate=500000
-            )
-            logger.info("CAN bus initialized successfully")
+            # Initialize CAN buses
+            logger.info(f"Initializing CAN interfaces: {', '.join(self.can_interfaces)}")
+            for interface in self.can_interfaces:
+                bus = can.Bus(
+                    interface='socketcan',
+                    channel=interface,
+                    bitrate=500000
+                )
+                self.buses.append(bus)
+                logger.info(f"CAN bus {interface} initialized successfully")
 
             # Initialize InfluxDB client
             logger.info(f"Connecting to InfluxDB: {self.influx_url}")
@@ -508,17 +512,17 @@ class CANTelemetryLogger:
             self.last_stats_time = now
 
     def run(self):
-        """Main loop: read CAN messages and log to InfluxDB"""
+        """Main loop: read CAN messages from all interfaces and log to InfluxDB"""
         self.running = True
         logger.info("Starting telemetry logger main loop")
 
         try:
             while self.running:
-                # Read CAN message (blocking with timeout)
-                msg = self.bus.recv(timeout=1.0)
-
-                if msg:
-                    self.process_can_message(msg)
+                # Read from all CAN buses with short timeout
+                for bus in self.buses:
+                    msg = bus.recv(timeout=0.1)
+                    if msg:
+                        self.process_can_message(msg)
 
                 # Print periodic statistics
                 self.print_statistics()
@@ -539,8 +543,8 @@ class CANTelemetryLogger:
             self.write_api.close()
         if self.influx_client:
             self.influx_client.close()
-        if self.bus:
-            self.bus.shutdown()
+        for bus in self.buses:
+            bus.shutdown()
 
         logger.info("Cleanup complete")
 
@@ -552,13 +556,15 @@ class CANTelemetryLogger:
 
 def main():
     """Main entry point"""
-    can_interface = os.getenv("CAN_INTERFACE", "can0")
+    # Support multiple CAN interfaces (comma-separated)
+    can_interfaces_str = os.getenv("CAN_INTERFACES", "can0,can1")
+    can_interfaces = [iface.strip() for iface in can_interfaces_str.split(',')]
 
     logger.info("=== Nissan Leaf CAN Telemetry Logger ===")
-    logger.info(f"CAN Interface: {can_interface}")
+    logger.info(f"CAN Interfaces: {', '.join(can_interfaces)}")
 
     try:
-        logger_service = CANTelemetryLogger(can_interface)
+        logger_service = CANTelemetryLogger(can_interfaces)
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, logger_service.signal_handler)
