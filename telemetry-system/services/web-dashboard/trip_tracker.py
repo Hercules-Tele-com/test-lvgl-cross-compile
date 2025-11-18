@@ -189,7 +189,7 @@ from(bucket: "{self.bucket}")
   |> filter(fn: (r) => r["_measurement"] == "trip_data")
   |> filter(fn: (r) => r["_field"] == "power_kw")
   |> filter(fn: (r) => r["_value"] < 0.0)
-  |> map(fn: (r) => ({ r with _value: -r._value }))
+  |> map(fn: (r) => ({{ r with _value: -r._value }}))
   |> integral(unit: 1h)
             '''
 
