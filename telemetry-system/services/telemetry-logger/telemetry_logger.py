@@ -143,18 +143,27 @@ class CANTelemetryLogger:
         return point
 
     def parse_battery_soc(self, data: bytes) -> Optional[Point]:
-        """Parse battery SOC CAN message"""
+        """Parse battery SOC CAN message (0x1DB - Nissan Leaf)"""
         if len(data) < 8:
             return None
 
-        soc_percent = data[0]
-        gids = int.from_bytes(data[1:3], 'big')
-        pack_voltage = int.from_bytes(data[3:5], 'big') * 0.1  # V
-        pack_current = int.from_bytes(data[5:7], 'big', signed=True) * 0.1  # A
+        # Nissan Leaf 2012+ CAN format
+        soc_raw = data[0]  # SOC in 0.5% units (200 = 100%)
+        soc_percent = soc_raw / 2.0
+
+        gids = int.from_bytes(data[1:3], 'big')  # No scaling
+
+        # Voltage in 0.5V units
+        pack_voltage_raw = int.from_bytes(data[3:5], 'big')
+        pack_voltage = pack_voltage_raw * 0.5
+
+        # Current in 0.5A units, signed
+        pack_current_raw = int.from_bytes(data[5:7], 'big', signed=True)
+        pack_current = pack_current_raw * 0.5
 
         point = Point("battery_soc") \
             .tag("source", "leaf_ecu") \
-            .field("soc_percent", int(soc_percent)) \
+            .field("soc_percent", float(soc_percent)) \
             .field("gids", int(gids)) \
             .field("pack_voltage", float(pack_voltage)) \
             .field("pack_current", float(pack_current)) \
@@ -163,14 +172,27 @@ class CANTelemetryLogger:
         return point
 
     def parse_battery_temp(self, data: bytes) -> Optional[Point]:
-        """Parse battery temperature CAN message"""
+        """Parse battery temperature CAN message (0x1DC - Nissan Leaf)"""
         if len(data) < 4:
             return None
 
-        temp_max = int.from_bytes(data[0:1], 'big', signed=True)
-        temp_min = int.from_bytes(data[1:2], 'big', signed=True)
-        temp_avg = int.from_bytes(data[2:3], 'big', signed=True)
-        sensor_count = data[3]
+        # Nissan Leaf temperature format (unsigned bytes, direct Celsius values)
+        # Temperatures are typically in range 0-80°C
+        temp1 = data[0]  # Temperature sensor 1
+        temp2 = data[1]  # Temperature sensor 2
+        temp3 = data[2]  # Temperature sensor 3
+        temp4 = data[3]  # Temperature sensor 4
+
+        # Calculate statistics from available sensors
+        temps = [t for t in [temp1, temp2, temp3, temp4] if 0 < t < 100]  # Filter valid temps
+
+        if not temps:
+            return None
+
+        temp_max = max(temps)
+        temp_min = min(temps)
+        temp_avg = sum(temps) / len(temps)
+        sensor_count = len(temps)
 
         point = Point("battery_temp") \
             .tag("source", "leaf_ecu") \
