@@ -184,7 +184,8 @@ def get_component_status() -> Dict[str, Any]:
         "leaf_inverter": {"measurement": "inverter", "name": "Leaf Inverter"},
         "leaf_battery": {"measurement": "battery_soc", "name": "Leaf Battery ECU"},
         "victron_bms": {"measurement": "victron_pack", "name": "Victron BMS"},
-        "gps": {"measurement": "gps_position", "name": "GPS Module"},
+        "usb_gps": {"measurement": "usb_gps_position", "name": "USB GPS"},
+        "can_gps": {"measurement": "gps_position", "name": "CAN GPS"},
         "charger": {"measurement": "charger", "name": "Charger"}
     }
 
@@ -250,17 +251,30 @@ def api_status():
     """Get current vehicle status (all metrics)"""
     try:
         # Query latest values for all measurements
+        components = get_component_status()
+
+        # Prefer USB GPS over CAN GPS if available
+        usb_gps_position = query_all_fields("usb_gps_position")
+        usb_gps_velocity = query_all_fields("usb_gps_velocity")
+        can_gps_position = query_all_fields("gps_position")
+        can_gps_velocity = query_all_fields("gps_velocity")
+
+        # Use USB GPS if online, otherwise fall back to CAN GPS
+        gps_position = usb_gps_position if usb_gps_position else can_gps_position
+        gps_velocity = usb_gps_velocity if usb_gps_velocity else can_gps_velocity
+
         status = {
             "timestamp": datetime.utcnow().isoformat(),
-            "components": get_component_status(),
+            "components": components,
+            "gps_source": "usb" if usb_gps_position else ("can" if can_gps_position else "none"),
             "inverter": query_all_fields("inverter"),
             "battery_soc": query_all_fields("battery_soc"),
             "battery_temp": query_all_fields("battery_temp"),
             "vehicle_speed": query_all_fields("vehicle_speed"),
             "motor_rpm": query_all_fields("motor_rpm"),
             "charger": query_all_fields("charger"),
-            "gps_position": query_all_fields("gps_position"),
-            "gps_velocity": query_all_fields("gps_velocity"),
+            "gps_position": gps_position,
+            "gps_velocity": gps_velocity,
             "body_temp": query_all_fields("body_temp"),
             "body_voltage": query_all_fields("body_voltage"),
             # Victron BMS data

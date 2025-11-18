@@ -137,7 +137,8 @@ function updateDashboard(data) {
         updateComponentStatus('statusLeafInverter', data.components.leaf_inverter);
         updateComponentStatus('statusLeafBattery', data.components.leaf_battery);
         updateComponentStatus('statusVictronBms', data.components.victron_bms);
-        updateComponentStatus('statusGps', data.components.gps);
+        updateComponentStatus('statusUsbGps', data.components.usb_gps);
+        updateComponentStatus('statusCanGps', data.components.can_gps);
         updateComponentStatus('statusCharger', data.components.charger);
     }
 
