@@ -61,8 +61,16 @@
             <div class="main-dashboard">
                 <!-- Battery Section -->
                 <div class="dashboard-section battery-section">
-                    <h2>⚡ Battery</h2>
-                    <div class="section-content">
+                    <div class="section-header-with-toggle">
+                        <h2>⚡ Battery</h2>
+                        <div class="battery-toggle">
+                            <button class="toggle-btn" id="btnLeafBattery" data-source="leaf">Leaf</button>
+                            <button class="toggle-btn active" id="btnVictronBattery" data-source="victron">Victron</button>
+                        </div>
+                    </div>
+
+                    <!-- Victron Battery View -->
+                    <div id="victronBatteryView" class="section-content battery-view active">
                         <div class="primary-metric">
                             <div class="metric-value-large" id="victronSocValue">--</div>
                             <div class="metric-unit">% SOC</div>
@@ -92,6 +100,46 @@
                                 <span class="metric-label">Cell Voltage:</span>
                                 <span class="metric-value" id="victronCellVoltageRange">--</span>
                                 <span class="metric-unit">mV</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Leaf Battery View -->
+                    <div id="leafBatteryView" class="section-content battery-view">
+                        <div class="primary-metric">
+                            <div class="metric-value-large" id="leafSocValue">--</div>
+                            <div class="metric-unit">% SOC</div>
+                        </div>
+                        <div class="secondary-metrics">
+                            <div class="metric-row">
+                                <span class="metric-label">Voltage:</span>
+                                <span class="metric-value" id="leafVoltageValue">--</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Current:</span>
+                                <span class="metric-value" id="leafCurrentValue">--</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Power:</span>
+                                <span class="metric-value" id="leafPowerValue">--</span>
+                                <span class="metric-unit">kW</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">GIDs:</span>
+                                <span class="metric-value" id="leafGidsValue">--</span>
+                                <span class="metric-unit"></span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Avg Temp:</span>
+                                <span class="metric-value" id="leafTempAvgValue">--</span>
+                                <span class="metric-unit">°C</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Temp Range:</span>
+                                <span class="metric-value" id="leafTempRangeValue">--</span>
+                                <span class="metric-unit">°C</span>
                             </div>
                         </div>
                     </div>

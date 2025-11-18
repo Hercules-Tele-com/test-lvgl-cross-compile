@@ -4,11 +4,13 @@
 let socket = null;
 let charts = {};
 let currentTimeRange = '24h';
+let batterySource = 'victron'; // Default to Victron
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initWebSocket();
     initTabs();
+    initBatteryToggle();
     initHistoricalView();
     fetchInitialData();
 });
@@ -85,6 +87,33 @@ function initTabs() {
 }
 
 // ============================================================================
+// Battery Source Toggle
+// ============================================================================
+
+function initBatteryToggle() {
+    const btnLeaf = document.getElementById('btnLeafBattery');
+    const btnVictron = document.getElementById('btnVictronBattery');
+    const leafView = document.getElementById('leafBatteryView');
+    const victronView = document.getElementById('victronBatteryView');
+
+    btnLeaf.addEventListener('click', () => {
+        batterySource = 'leaf';
+        btnLeaf.classList.add('active');
+        btnVictron.classList.remove('active');
+        leafView.classList.add('active');
+        victronView.classList.remove('active');
+    });
+
+    btnVictron.addEventListener('click', () => {
+        batterySource = 'victron';
+        btnVictron.classList.add('active');
+        btnLeaf.classList.remove('active');
+        victronView.classList.add('active');
+        leafView.classList.remove('active');
+    });
+}
+
+// ============================================================================
 // Dashboard Updates
 // ============================================================================
 
@@ -128,6 +157,23 @@ function updateDashboard(data) {
         const minV = data.victron_cells.min_voltage_mv || 0;
         const maxV = data.victron_cells.max_voltage_mv || 0;
         updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
+    }
+
+    // Leaf Battery Data
+    if (data.battery_soc) {
+        updateElement('leafSocValue', Math.round(data.battery_soc.soc_percent || 0));
+        updateElement('leafVoltageValue', (data.battery_soc.pack_voltage || 0).toFixed(1));
+        updateElement('leafCurrentValue', (data.battery_soc.pack_current || 0).toFixed(1));
+        const power = (data.battery_soc.pack_voltage || 0) * (data.battery_soc.pack_current || 0) / 1000;
+        updateElement('leafPowerValue', power.toFixed(2));
+        updateElement('leafGidsValue', data.battery_soc.gids || 0);
+    }
+
+    if (data.battery_temp) {
+        updateElement('leafTempAvgValue', Math.round(data.battery_temp.temp_avg || 0));
+        const min = data.battery_temp.temp_min || 0;
+        const max = data.battery_temp.temp_max || 0;
+        updateElement('leafTempRangeValue', `${min} - ${max}`);
     }
 
     // Motor/Inverter Data
