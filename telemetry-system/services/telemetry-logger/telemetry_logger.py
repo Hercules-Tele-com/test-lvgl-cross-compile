@@ -74,6 +74,7 @@ class CANTelemetryLogger:
         self.write_count = 0
         self.error_count = 0
         self.last_stats_time = time.time()
+        self.can_id_counts = {}  # Track CAN IDs for debugging
 
     def init(self) -> bool:
         """Initialize CAN bus and InfluxDB connection"""
@@ -469,6 +470,11 @@ class CANTelemetryLogger:
         """Process a single CAN message and write to InfluxDB"""
         self.msg_count += 1
 
+        # Track CAN IDs for debugging
+        if msg.arbitration_id not in self.can_id_counts:
+            self.can_id_counts[msg.arbitration_id] = 0
+        self.can_id_counts[msg.arbitration_id] += 1
+
         point = None
 
         # Parse based on CAN ID
@@ -535,6 +541,12 @@ class CANTelemetryLogger:
                 f"{self.write_count} writes ({write_rate:.1f}/s), "
                 f"{self.error_count} errors"
             )
+
+            # Log top CAN IDs seen (for debugging)
+            if hasattr(self, 'can_id_counts'):
+                top_ids = sorted(self.can_id_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                logger.info(f"Top CAN IDs: {[(hex(id), count) for id, count in top_ids]}")
+                self.can_id_counts = {}
 
             self.msg_count = 0
             self.write_count = 0

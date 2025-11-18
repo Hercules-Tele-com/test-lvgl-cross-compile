@@ -10,7 +10,6 @@ let batterySource = 'victron'; // Default to Victron
 document.addEventListener('DOMContentLoaded', () => {
     initWebSocket();
     initTabs();
-    initBatteryToggle();
     initHistoricalView();
     fetchInitialData();
 });
@@ -86,32 +85,6 @@ function initTabs() {
     });
 }
 
-// ============================================================================
-// Battery Source Toggle
-// ============================================================================
-
-function initBatteryToggle() {
-    const btnLeaf = document.getElementById('btnLeafBattery');
-    const btnVictron = document.getElementById('btnVictronBattery');
-    const leafView = document.getElementById('leafBatteryView');
-    const victronView = document.getElementById('victronBatteryView');
-
-    btnLeaf.addEventListener('click', () => {
-        batterySource = 'leaf';
-        btnLeaf.classList.add('active');
-        btnVictron.classList.remove('active');
-        leafView.classList.add('active');
-        victronView.classList.remove('active');
-    });
-
-    btnVictron.addEventListener('click', () => {
-        batterySource = 'victron';
-        btnVictron.classList.add('active');
-        btnLeaf.classList.remove('active');
-        victronView.classList.add('active');
-        leafView.classList.remove('active');
-    });
-}
 
 // ============================================================================
 // Dashboard Updates
@@ -134,8 +107,6 @@ function updateDashboard(data) {
 
     // Update component status
     if (data.components) {
-        updateComponentStatus('statusLeafInverter', data.components.leaf_inverter);
-        updateComponentStatus('statusLeafBattery', data.components.leaf_battery);
         updateComponentStatus('statusVictronBms', data.components.victron_bms);
         updateComponentStatus('statusUsbGps', data.components.usb_gps);
         updateComponentStatus('statusCanGps', data.components.can_gps);
@@ -160,87 +131,6 @@ function updateDashboard(data) {
         updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
     }
 
-    // Leaf Battery Data
-    if (data.battery_soc) {
-        updateElement('leafSocValue', Math.round(data.battery_soc.soc_percent || 0));
-        updateElement('leafVoltageValue', (data.battery_soc.pack_voltage || 0).toFixed(1));
-        updateElement('leafCurrentValue', (data.battery_soc.pack_current || 0).toFixed(1));
-        const power = (data.battery_soc.pack_voltage || 0) * (data.battery_soc.pack_current || 0) / 1000;
-        updateElement('leafPowerValue', power.toFixed(2));
-        updateElement('leafGidsValue', data.battery_soc.gids || 0);
-    }
-
-    if (data.battery_temp) {
-        updateElement('leafTempAvgValue', Math.round(data.battery_temp.temp_avg || 0));
-        const min = data.battery_temp.temp_min || 0;
-        const max = data.battery_temp.temp_max || 0;
-        updateElement('leafTempRangeValue', `${min} - ${max}`);
-    }
-
-    // Motor/Inverter Data
-    if (data.motor_rpm) {
-        updateElement('motorRpmValue', Math.round(data.motor_rpm.rpm || 0));
-    }
-
-    if (data.vehicle_speed) {
-        updateElement('vehicleSpeedValue', Math.round(data.vehicle_speed.speed_kmh || 0));
-    }
-
-    if (data.inverter) {
-        updateElement('inverterVoltageValue', (data.inverter.voltage || 0).toFixed(1));
-        updateElement('inverterCurrentValue', (data.inverter.current || 0).toFixed(1));
-        updateElement('motorPowerValue', (data.inverter.power_kw || 0).toFixed(2));
-        updateElement('inverterTempValue', Math.round(data.inverter.temp_inverter || 0));
-        updateElement('motorTempValue', Math.round(data.inverter.temp_motor || 0));
-    }
-
-    // Legacy Battery SOC (for old dashboard elements if still present)
-    if (data.battery_soc) {
-        const soc = data.battery_soc.soc_percent || 0;
-        updateElement('socValue', Math.round(soc));
-        updateBatteryLevel(soc);
-        updateElement('batteryVoltage', (data.battery_soc.pack_voltage || 0).toFixed(1));
-        updateElement('batteryCurrent', (data.battery_soc.pack_current || 0).toFixed(1));
-    }
-
-    // Speed
-    if (data.vehicle_speed) {
-        const speed = data.vehicle_speed.speed_kmh || 0;
-        updateElement('speedValue', Math.round(speed));
-        updateSpeedGauge(speed);
-    }
-
-    // Motor RPM
-    if (data.motor_rpm) {
-        updateElement('motorRpm', data.motor_rpm.rpm || 0);
-        updateElement('motorDirection', getDirectionText(data.motor_rpm.direction));
-    }
-
-    // Power
-    if (data.inverter && data.inverter.power_kw !== undefined) {
-        const power = data.inverter.power_kw;
-        updateElement('powerValue', Math.abs(power).toFixed(1));
-        updateElement('powerType', power > 0 ? 'Discharge' : power < 0 ? 'Regen' : 'Idle');
-    } else if (data.battery_soc && data.battery_soc.pack_power_kw !== undefined) {
-        const power = data.battery_soc.pack_power_kw;
-        updateElement('powerValue', Math.abs(power).toFixed(1));
-        updateElement('powerType', power > 0 ? 'Discharge' : power < 0 ? 'Regen' : 'Idle');
-    }
-
-    // Temperatures
-    if (data.inverter) {
-        updateElement('inverterTemp', data.inverter.temp_inverter || '--');
-        updateElement('motorTemp', data.inverter.temp_motor || '--');
-    }
-
-    if (data.battery_temp) {
-        updateElement('batteryTemp', data.battery_temp.temp_avg || '--');
-        const min = data.battery_temp.temp_min;
-        const max = data.battery_temp.temp_max;
-        if (min !== undefined && max !== undefined) {
-            updateElement('batteryTempRange', `${min}°C - ${max}°C`);
-        }
-    }
 
     // Charging
     if (data.charger) {
@@ -355,13 +245,12 @@ function loadHistoricalData() {
     else if (currentTimeRange === '24h') window = '10m';
     else if (currentTimeRange === '7d') window = '1h';
 
-    // Load all charts
-    loadChart('battery_soc', 'soc_percent', 'chartBatterySoc', '%', '#00ff88');
-    loadChart('vehicle_speed', 'speed_kmh', 'chartSpeed', 'km/h', '#00b4d8');
-    loadChart('battery_soc', 'pack_power_kw', 'chartPower', 'kW', '#ff8800');
-    loadChart('battery_temp', 'temp_avg', 'chartBatteryTemp', '°C', '#ff3333');
-    loadMultiLineChart();
-    loadBatteryVIChart();
+    // Load all charts (Victron data only)
+    loadChart('victron_soc', 'soc_percent', 'chartBatterySoc', '%', '#00ff88');
+    loadChart('gps_velocity', 'speed_kmh', 'chartSpeed', 'km/h', '#00b4d8');
+    loadChart('victron_pack', 'power_kw', 'chartPower', 'kW', '#ff8800');
+    loadChart('victron_pack', 'temperature', 'chartBatteryTemp', '°C', '#ff3333');
+    loadVictronVIChart();
 }
 
 function loadChart(measurement, field, canvasId, unit, color) {
@@ -377,32 +266,16 @@ function loadChart(measurement, field, canvasId, unit, color) {
         });
 }
 
-function loadMultiLineChart() {
+function loadVictronVIChart() {
     const window = getWindowSize();
 
     Promise.all([
-        fetch(`/api/historical/inverter/temp_inverter?duration=${currentTimeRange}&window=${window}`).then(r => r.json()),
-        fetch(`/api/historical/inverter/temp_motor?duration=${currentTimeRange}&window=${window}`).then(r => r.json())
-    ]).then(([inverterData, motorData]) => {
-        renderMultiLineChart('chartTemps', [
-            { label: 'Inverter', data: inverterData.data, color: '#ff8800' },
-            { label: 'Motor', data: motorData.data, color: '#ff3333' }
-        ], '°C');
-    }).catch(error => {
-        console.error('Error loading temperature chart:', error);
-    });
-}
-
-function loadBatteryVIChart() {
-    const window = getWindowSize();
-
-    Promise.all([
-        fetch(`/api/historical/battery_soc/pack_voltage?duration=${currentTimeRange}&window=${window}`).then(r => r.json()),
-        fetch(`/api/historical/battery_soc/pack_current?duration=${currentTimeRange}&window=${window}`).then(r => r.json())
+        fetch(`/api/historical/victron_pack/voltage?duration=${currentTimeRange}&window=${window}`).then(r => r.json()),
+        fetch(`/api/historical/victron_pack/current?duration=${currentTimeRange}&window=${window}`).then(r => r.json())
     ]).then(([voltageData, currentData]) => {
         renderDualAxisChart('chartBatteryVI', voltageData.data, currentData.data);
     }).catch(error => {
-        console.error('Error loading battery V/I chart:', error);
+        console.error('Error loading Victron V/I chart:', error);
     });
 }
 
@@ -651,15 +524,18 @@ function loadDetailsData() {
     fetch('/api/status')
         .then(response => response.json())
         .then(data => {
-            updateElement('detailsInverter', JSON.stringify(data.inverter || {}, null, 2));
             updateElement('detailsBattery', JSON.stringify({
-                soc: data.battery_soc || {},
-                temp: data.battery_temp || {}
+                pack: data.victron_pack || {},
+                soc: data.victron_soc || {},
+                cells: data.victron_cells || {},
+                limits: data.victron_limits || {},
+                info: data.victron_info || {}
             }, null, 2));
-            updateElement('detailsMotor', JSON.stringify(data.motor_rpm || {}, null, 2));
             updateElement('detailsGps', JSON.stringify({
                 position: data.gps_position || {},
-                velocity: data.gps_velocity || {}
+                velocity: data.gps_velocity || {},
+                usb_position: data.usb_gps_position || {},
+                usb_velocity: data.usb_gps_velocity || {}
             }, null, 2));
         })
         .catch(error => {
@@ -807,24 +683,21 @@ function updateEnergyFlow(data) {
     const isCharging = charger && charger.charging_flag === 1;
 
     // Hide all arrows first
-    document.getElementById('flowToMotor').setAttribute('opacity', '0');
-    document.getElementById('flowFromCharger').setAttribute('opacity', '0');
-    document.getElementById('flowFromMotor').setAttribute('opacity', '0');
+    const chargerArrow = document.getElementById('flowFromCharger');
+    if (chargerArrow) {
+        chargerArrow.setAttribute('opacity', '0');
+    }
 
     if (isCharging) {
         // Charging: Show charger to battery arrow
-        document.getElementById('flowFromCharger').setAttribute('opacity', '1');
-        const chargePower = Math.abs(power);
-        document.getElementById('powerFromCharger').textContent = chargePower.toFixed(2) + ' kW';
-    } else if (power > 0.1) {
-        // Discharging: Show battery to motor arrow
-        document.getElementById('flowToMotor').setAttribute('opacity', '1');
-        document.getElementById('powerToMotor').textContent = power.toFixed(2) + ' kW';
-    } else if (power < -0.1) {
-        // Regenerating: Show motor to battery arrow
-        document.getElementById('flowFromMotor').setAttribute('opacity', '1');
-        const regenPower = Math.abs(power);
-        document.getElementById('powerFromMotor').textContent = regenPower.toFixed(2) + ' kW';
+        if (chargerArrow) {
+            chargerArrow.setAttribute('opacity', '1');
+            const chargePower = Math.abs(power);
+            const powerText = document.getElementById('powerFromCharger');
+            if (powerText) {
+                powerText.textContent = chargePower.toFixed(2) + ' kW';
+            }
+        }
     }
 
     // Update energy statistics (placeholder - would need backend calculation)

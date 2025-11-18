@@ -35,14 +35,6 @@
         <div id="dashboard" class="tab-content active">
             <!-- Component Status Bar -->
             <div class="component-status-bar">
-                <div class="component-status" id="statusLeafInverter">
-                    <span class="status-indicator"></span>
-                    <span class="component-name">Leaf Inverter</span>
-                </div>
-                <div class="component-status" id="statusLeafBattery">
-                    <span class="status-indicator"></span>
-                    <span class="component-name">Leaf Battery</span>
-                </div>
                 <div class="component-status" id="statusVictronBms">
                     <span class="status-indicator"></span>
                     <span class="component-name">Victron BMS</span>
@@ -63,15 +55,9 @@
 
             <!-- Simplified Main Dashboard -->
             <div class="main-dashboard">
-                <!-- Battery Section -->
+                <!-- Battery Section (Victron Only) -->
                 <div class="dashboard-section battery-section">
-                    <div class="section-header-with-toggle">
-                        <h2>⚡ Battery</h2>
-                        <div class="battery-toggle">
-                            <button class="toggle-btn" id="btnLeafBattery" data-source="leaf">Leaf</button>
-                            <button class="toggle-btn active" id="btnVictronBattery" data-source="victron">Victron</button>
-                        </div>
-                    </div>
+                    <h2>⚡ Battery (Victron BMS)</h2>
 
                     <!-- Victron Battery View -->
                     <div id="victronBatteryView" class="section-content battery-view active">
@@ -107,121 +93,11 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Leaf Battery View -->
-                    <div id="leafBatteryView" class="section-content battery-view">
-                        <div class="primary-metric">
-                            <div class="metric-value-large" id="leafSocValue">--</div>
-                            <div class="metric-unit">% SOC</div>
-                        </div>
-                        <div class="secondary-metrics">
-                            <div class="metric-row">
-                                <span class="metric-label">Voltage:</span>
-                                <span class="metric-value" id="leafVoltageValue">--</span>
-                                <span class="metric-unit">V</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Current:</span>
-                                <span class="metric-value" id="leafCurrentValue">--</span>
-                                <span class="metric-unit">A</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Power:</span>
-                                <span class="metric-value" id="leafPowerValue">--</span>
-                                <span class="metric-unit">kW</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">GIDs:</span>
-                                <span class="metric-value" id="leafGidsValue">--</span>
-                                <span class="metric-unit"></span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Avg Temp:</span>
-                                <span class="metric-value" id="leafTempAvgValue">--</span>
-                                <span class="metric-unit">°C</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Temp Range:</span>
-                                <span class="metric-value" id="leafTempRangeValue">--</span>
-                                <span class="metric-unit">°C</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Motor/Inverter Section -->
-                <div class="dashboard-section motor-section">
-                    <h2>🔧 Motor & Inverter</h2>
-                    <div class="section-content">
-                        <div class="primary-metric">
-                            <div class="metric-value-large" id="motorRpmValue">--</div>
-                            <div class="metric-unit">RPM</div>
-                        </div>
-                        <div class="secondary-metrics">
-                            <div class="metric-row">
-                                <span class="metric-label">Speed:</span>
-                                <span class="metric-value" id="vehicleSpeedValue">--</span>
-                                <span class="metric-unit">km/h</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Inverter Voltage:</span>
-                                <span class="metric-value" id="inverterVoltageValue">--</span>
-                                <span class="metric-unit">V</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Inverter Current:</span>
-                                <span class="metric-value" id="inverterCurrentValue">--</span>
-                                <span class="metric-unit">A</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Motor Power:</span>
-                                <span class="metric-value" id="motorPowerValue">--</span>
-                                <span class="metric-unit">kW</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Inverter Temp:</span>
-                                <span class="metric-value" id="inverterTempValue">--</span>
-                                <span class="metric-unit">°C</span>
-                            </div>
-                            <div class="metric-row">
-                                <span class="metric-label">Motor Temp:</span>
-                                <span class="metric-value" id="motorTempValue">--</span>
-                                <span class="metric-unit">°C</span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            <!-- Temperature Row -->
+            <!-- Charging Status -->
             <div class="metrics-grid">
-                <div class="metric-card">
-                    <h3>Inverter Temp</h3>
-                    <div class="value-display">
-                        <div class="value-medium" id="inverterTemp">--</div>
-                        <div class="value-unit">°C</div>
-                    </div>
-                </div>
-
-                <div class="metric-card">
-                    <h3>Motor Temp</h3>
-                    <div class="value-display">
-                        <div class="value-medium" id="motorTemp">--</div>
-                        <div class="value-unit">°C</div>
-                    </div>
-                </div>
-
-                <div class="metric-card">
-                    <h3>Battery Temp</h3>
-                    <div class="value-display">
-                        <div class="value-medium" id="batteryTemp">--</div>
-                        <div class="value-unit">°C</div>
-                        <div class="value-small">
-                            <span id="batteryTempRange">--</span>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="metric-card charging" id="chargingCard">
                     <h3>Charging</h3>
                     <div class="value-display">
@@ -330,45 +206,26 @@
                 </div>
             </div>
 
-            <!-- Energy Flow Diagram (Phase 2) -->
+            <!-- Energy Flow Diagram -->
             <div class="section-header">
                 <h2>⚡ Energy Flow</h2>
             </div>
 
             <div class="metrics-grid">
                 <div class="metric-card large energy-flow-card">
-                    <h3>Power Flow Diagram</h3>
-                    <svg id="energyFlowDiagram" viewBox="0 0 600 300" class="energy-flow-svg">
+                    <h3>Battery Charging Status</h3>
+                    <svg id="energyFlowDiagram" viewBox="0 0 600 200" class="energy-flow-svg">
                         <!-- Battery -->
-                        <g id="battery" transform="translate(50, 125)">
-                            <rect x="0" y="0" width="100" height="50" rx="5" fill="rgba(0, 255, 136, 0.2)" stroke="#00ff88" stroke-width="2"/>
-                            <rect x="100" y="15" width="10" height="20" fill="#00ff88"/>
-                            <text x="50" y="30" text-anchor="middle" fill="#00ff88" font-size="14" font-weight="bold">BATTERY</text>
-                        </g>
-
-                        <!-- Motor/Inverter -->
-                        <g id="motor" transform="translate(450, 75)">
-                            <circle cx="50" cy="50" r="40" fill="rgba(68, 170, 255, 0.2)" stroke="#44aaff" stroke-width="2"/>
-                            <text x="50" y="50" text-anchor="middle" fill="#44aaff" font-size="12" font-weight="bold">MOTOR</text>
-                            <text x="50" y="65" text-anchor="middle" fill="#44aaff" font-size="10">INVERTER</text>
+                        <g id="battery" transform="translate(100, 75)">
+                            <rect x="0" y="0" width="120" height="60" rx="5" fill="rgba(0, 255, 136, 0.2)" stroke="#00ff88" stroke-width="2"/>
+                            <rect x="120" y="20" width="12" height="20" fill="#00ff88"/>
+                            <text x="60" y="38" text-anchor="middle" fill="#00ff88" font-size="16" font-weight="bold">BATTERY</text>
                         </g>
 
                         <!-- Charger/Grid -->
-                        <g id="charger" transform="translate(450, 175)">
-                            <polygon points="50,0 100,25 50,50 0,25" fill="rgba(255, 136, 68, 0.2)" stroke="#ff8844" stroke-width="2"/>
-                            <text x="50" y="30" text-anchor="middle" fill="#ff8844" font-size="12" font-weight="bold">CHARGER</text>
-                        </g>
-
-                        <!-- Flow Arrows -->
-                        <!-- Battery to Motor (discharge) -->
-                        <g id="flowToMotor" class="flow-arrow" opacity="0">
-                            <defs>
-                                <marker id="arrowMotor" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-                                    <polygon points="0,0 10,5 0,10" fill="#44aaff"/>
-                                </marker>
-                            </defs>
-                            <line x1="160" y1="130" x2="440" y2="115" stroke="#44aaff" stroke-width="3" marker-end="url(#arrowMotor)" class="animated-arrow"/>
-                            <text id="powerToMotor" x="300" y="115" text-anchor="middle" fill="#44aaff" font-size="14" font-weight="bold">0 kW</text>
+                        <g id="charger" transform="translate(400, 70)">
+                            <polygon points="60,0 120,30 60,60 0,30" fill="rgba(255, 136, 68, 0.2)" stroke="#ff8844" stroke-width="2"/>
+                            <text x="60" y="35" text-anchor="middle" fill="#ff8844" font-size="14" font-weight="bold">CHARGER</text>
                         </g>
 
                         <!-- Charger to Battery (charging) -->
@@ -378,19 +235,8 @@
                                     <polygon points="0,0 10,5 0,10" fill="#ff8844"/>
                                 </marker>
                             </defs>
-                            <line x1="440" y1="200" x2="160" y2="165" stroke="#ff8844" stroke-width="3" marker-end="url(#arrowCharger)" class="animated-arrow"/>
-                            <text id="powerFromCharger" x="300" y="175" text-anchor="middle" fill="#ff8844" font-size="14" font-weight="bold">0 kW</text>
-                        </g>
-
-                        <!-- Motor to Battery (regen) -->
-                        <g id="flowFromMotor" class="flow-arrow" opacity="0">
-                            <defs>
-                                <marker id="arrowRegen" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-                                    <polygon points="0,0 10,5 0,10" fill="#00ff88"/>
-                                </marker>
-                            </defs>
-                            <line x1="440" y1="125" x2="160" y2="140" stroke="#00ff88" stroke-width="3" marker-end="url(#arrowRegen)" class="animated-arrow"/>
-                            <text id="powerFromMotor" x="300" y="125" text-anchor="middle" fill="#00ff88" font-size="14" font-weight="bold">0 kW</text>
+                            <line x1="390" y1="100" x2="232" y2="100" stroke="#ff8844" stroke-width="3" marker-end="url(#arrowCharger)" class="animated-arrow"/>
+                            <text id="powerFromCharger" x="310" y="90" text-anchor="middle" fill="#ff8844" font-size="14" font-weight="bold">0 kW</text>
                         </g>
                     </svg>
                 </div>
@@ -400,12 +246,12 @@
                     <h3>Energy Statistics (Today)</h3>
                     <div class="energy-stats-grid">
                         <div class="energy-stat">
-                            <span class="stat-label">Consumed</span>
+                            <span class="stat-label">Charged</span>
                             <span class="stat-value" id="energyConsumed">0.00</span>
                             <span class="stat-unit">kWh</span>
                         </div>
-                        <div class="energy-stat regen">
-                            <span class="stat-label">Regenerated</span>
+                        <div class="energy-stat">
+                            <span class="stat-label">Discharged</span>
                             <span class="stat-value" id="energyRegen">0.00</span>
                             <span class="stat-unit">kWh</span>
                         </div>
@@ -508,16 +354,8 @@
             <h2>System Details</h2>
             <div class="details-grid">
                 <div class="detail-section">
-                    <h3>Inverter</h3>
-                    <pre id="detailsInverter">Loading...</pre>
-                </div>
-                <div class="detail-section">
-                    <h3>Battery</h3>
+                    <h3>Victron Battery</h3>
                     <pre id="detailsBattery">Loading...</pre>
-                </div>
-                <div class="detail-section">
-                    <h3>Motor</h3>
-                    <pre id="detailsMotor">Loading...</pre>
                 </div>
                 <div class="detail-section">
                     <h3>GPS</h3>
