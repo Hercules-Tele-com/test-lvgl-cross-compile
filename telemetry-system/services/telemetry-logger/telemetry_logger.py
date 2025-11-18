@@ -62,14 +62,12 @@ class CANTelemetryLogger:
         self.influx_client: Optional[InfluxDBClient] = None
         self.write_api = None
 
-        # Load configuration
+        # Load configuration (optional - can run without InfluxDB)
         self.influx_url = os.getenv("INFLUX_URL", "http://localhost:8086")
         self.influx_org = os.getenv("INFLUX_ORG", "leaf-telemetry")
         self.influx_bucket = os.getenv("INFLUX_BUCKET", "leaf-data")
         self.influx_token = os.getenv("INFLUX_LOGGER_TOKEN", "")
-
-        if not self.influx_token:
-            raise ValueError("INFLUX_LOGGER_TOKEN environment variable not set")
+        self.influx_enabled = bool(self.influx_token)
 
         # Statistics
         self.msg_count = 0
@@ -80,7 +78,7 @@ class CANTelemetryLogger:
     def init(self) -> bool:
         """Initialize CAN bus and InfluxDB connection"""
         try:
-            # Initialize CAN buses
+            # Initialize CAN buses (required)
             logger.info(f"Initializing CAN interfaces: {', '.join(self.can_interfaces)}")
             for interface in self.can_interfaces:
                 bus = can.Bus(
@@ -91,26 +89,35 @@ class CANTelemetryLogger:
                 self.buses.append(bus)
                 logger.info(f"CAN bus {interface} initialized successfully")
 
-            # Initialize InfluxDB client
-            logger.info(f"Connecting to InfluxDB: {self.influx_url}")
-            self.influx_client = InfluxDBClient(
-                url=self.influx_url,
-                token=self.influx_token,
-                org=self.influx_org
-            )
-            self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
+            # Initialize InfluxDB client (optional)
+            if self.influx_enabled:
+                try:
+                    logger.info(f"Connecting to InfluxDB: {self.influx_url}")
+                    self.influx_client = InfluxDBClient(
+                        url=self.influx_url,
+                        token=self.influx_token,
+                        org=self.influx_org
+                    )
+                    self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
 
-            # Test connection
-            health = self.influx_client.health()
-            if health.status == "pass":
-                logger.info("InfluxDB connection successful")
-                return True
+                    # Test connection
+                    health = self.influx_client.health()
+                    if health.status == "pass":
+                        logger.info("InfluxDB connection successful")
+                    else:
+                        logger.warning(f"InfluxDB health check failed: {health.message}")
+                        self.influx_enabled = False
+                except Exception as e:
+                    logger.warning(f"InfluxDB connection failed: {e}")
+                    logger.info("Continuing without InfluxDB - CAN messages will be received but not logged")
+                    self.influx_enabled = False
             else:
-                logger.error(f"InfluxDB health check failed: {health.message}")
-                return False
+                logger.info("InfluxDB disabled (no token configured) - CAN messages will be received but not logged")
+
+            return True  # Success if CAN buses initialized
 
         except Exception as e:
-            logger.error(f"Initialization failed: {e}")
+            logger.error(f"CAN bus initialization failed: {e}")
             return False
 
     def parse_inverter_telemetry(self, data: bytes) -> Optional[Point]:
@@ -482,8 +489,8 @@ class CANTelemetryLogger:
         elif msg.arbitration_id == CAN_ID_VICTRON_CELLS_3:
             point = self.parse_victron_cells(msg.data, 3)
 
-        # Write to InfluxDB
-        if point:
+        # Write to InfluxDB (if enabled)
+        if point and self.influx_enabled and self.write_api:
             try:
                 self.write_api.write(bucket=self.influx_bucket, record=point)
                 self.write_count += 1
@@ -539,10 +546,11 @@ class CANTelemetryLogger:
         logger.info("Cleaning up...")
         self.running = False
 
-        if self.write_api:
-            self.write_api.close()
-        if self.influx_client:
-            self.influx_client.close()
+        if self.influx_enabled:
+            if self.write_api:
+                self.write_api.close()
+            if self.influx_client:
+                self.influx_client.close()
         for bus in self.buses:
             bus.shutdown()
 
