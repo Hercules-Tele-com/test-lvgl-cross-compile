@@ -16,6 +16,9 @@ from influxdb_client import InfluxDBClient
 from influxdb_client.client.query_api import QueryApi
 import threading
 import time
+import csv
+import io
+from trip_tracker import TripTracker
 
 # Setup logging
 logging.basicConfig(
@@ -42,11 +45,12 @@ if not INFLUX_TOKEN:
 # Global InfluxDB client
 influx_client: Optional[InfluxDBClient] = None
 query_api: Optional[QueryApi] = None
+trip_tracker: Optional[TripTracker] = None
 
 
 def init_influxdb():
     """Initialize InfluxDB client"""
-    global influx_client, query_api
+    global influx_client, query_api, trip_tracker
     try:
         logger.info(f"Connecting to InfluxDB: {INFLUX_URL}")
         influx_client = InfluxDBClient(
@@ -55,6 +59,10 @@ def init_influxdb():
             org=INFLUX_ORG
         )
         query_api = influx_client.query_api()
+
+        # Initialize trip tracker
+        trip_tracker = TripTracker(influx_client, INFLUX_BUCKET, INFLUX_ORG)
+        logger.info("Trip tracker initialized")
 
         # Test connection
         health = influx_client.health()
@@ -319,6 +327,153 @@ from(bucket: "{INFLUX_BUCKET}")
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/trips/current')
+def api_trips_current():
+    """Get current ongoing trip status"""
+    try:
+        if not trip_tracker:
+            return jsonify({"error": "Trip tracker not initialized"}), 500
+
+        current_trip = trip_tracker.get_current_trip_status()
+        return jsonify(current_trip if current_trip else {"status": "no_active_trip"})
+    except Exception as e:
+        logger.error(f"Error in /api/trips/current: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/trips/recent')
+def api_trips_recent():
+    """Get recent completed trips"""
+    try:
+        if not trip_tracker:
+            return jsonify({"error": "Trip tracker not initialized"}), 500
+
+        limit = int(request.args.get('limit', 10))
+        trips = trip_tracker.get_recent_trips(limit)
+        return jsonify({"trips": trips})
+    except Exception as e:
+        logger.error(f"Error in /api/trips/recent: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/gps/track')
+def api_gps_track():
+    """Get GPS track points for time range"""
+    try:
+        start = request.args.get('start', '-1h')
+        end = request.args.get('end', 'now()')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "gps_position")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+        track_points = []
+
+        for table in tables:
+            for record in table.records:
+                track_points.append({
+                    "time": record.get_time().isoformat(),
+                    "latitude": record.values.get("latitude"),
+                    "longitude": record.values.get("longitude")
+                })
+
+        return jsonify({"track_points": track_points})
+    except Exception as e:
+        logger.error(f"Error in /api/gps/track: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export/csv')
+def api_export_csv():
+    """Export data to CSV"""
+    try:
+        start = request.args.get('start', '-24h')
+        end = request.args.get('end', 'now()')
+        measurement = request.args.get('measurement', 'victron_pack')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = None
+
+        for table in tables:
+            for record in table.records:
+                if writer is None:
+                    # Create header from first record
+                    fieldnames = ['timestamp'] + [k for k in record.values.keys()
+                                                   if not k.startswith('_') and k not in ['result', 'table']]
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+
+                # Write data row
+                row = {'timestamp': record.get_time().isoformat()}
+                row.update({k: v for k, v in record.values.items()
+                            if not k.startswith('_') and k not in ['result', 'table']})
+                writer.writerow(row)
+
+        # Return CSV file
+        output.seek(0)
+        return output.getvalue(), 200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': f'attachment; filename={measurement}_export.csv'
+        }
+    except Exception as e:
+        logger.error(f"Error in /api/export/csv: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export/json')
+def api_export_json():
+    """Export data to JSON"""
+    try:
+        start = request.args.get('start', '-24h')
+        end = request.args.get('end', 'now()')
+        measurement = request.args.get('measurement', 'victron_pack')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+        data_points = []
+
+        for table in tables:
+            for record in table.records:
+                point = {'timestamp': record.get_time().isoformat()}
+                point.update({k: v for k, v in record.values.items()
+                              if not k.startswith('_') and k not in ['result', 'table']})
+                data_points.append(point)
+
+        return jsonify({
+            "measurement": measurement,
+            "start": start,
+            "end": end,
+            "count": len(data_points),
+            "data": data_points
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/export/json: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================================
 # WEBSOCKET EVENTS
 # ============================================================================
@@ -361,6 +516,13 @@ def broadcast_realtime_data():
                 "victron_limits": query_all_fields("victron_limits"),
                 "victron_characteristics": query_all_fields("victron_characteristics")
             }
+
+            # Update trip tracker with latest data
+            if trip_tracker and status.get("vehicle_speed") and status.get("victron_soc") and status.get("victron_pack"):
+                speed = status["vehicle_speed"].get("speed_kmh", 0.0)
+                soc = status["victron_soc"].get("soc_percent", 0)
+                power = status["victron_pack"].get("power_kw", 0.0)
+                trip_tracker.update(speed, soc, power)
 
             # Broadcast to all connected clients
             socketio.emit('realtime_update', status)
