@@ -33,62 +33,110 @@
 
         <!-- Dashboard Tab -->
         <div id="dashboard" class="tab-content active">
-            <!-- Main Metrics Row -->
-            <div class="metrics-grid">
-                <!-- Speed Gauge -->
-                <div class="metric-card large">
-                    <h3>Speed</h3>
-                    <div class="gauge-container">
-                        <svg viewBox="0 0 200 120" class="gauge">
-                            <path d="M 20 100 A 80 80 0 0 1 180 100"
-                                  fill="none" stroke="#2a2a2a" stroke-width="15" />
-                            <path id="speedArc" d="M 20 100 A 80 80 0 0 1 180 100"
-                                  fill="none" stroke="#00ff88" stroke-width="15"
-                                  stroke-dasharray="251.2" stroke-dashoffset="251.2" />
-                        </svg>
-                        <div class="gauge-value">
-                            <span id="speedValue" class="value-large">0</span>
-                            <span class="value-unit">km/h</span>
-                        </div>
-                    </div>
+            <!-- Component Status Bar -->
+            <div class="component-status-bar">
+                <div class="component-status" id="statusLeafInverter">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Leaf Inverter</span>
                 </div>
+                <div class="component-status" id="statusLeafBattery">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Leaf Battery</span>
+                </div>
+                <div class="component-status" id="statusVictronBms">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Victron BMS</span>
+                </div>
+                <div class="component-status" id="statusGps">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">GPS</span>
+                </div>
+                <div class="component-status" id="statusCharger">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Charger</span>
+                </div>
+            </div>
 
-                <!-- Battery SOC -->
-                <div class="metric-card large battery">
-                    <h3>Battery</h3>
-                    <div class="battery-display">
-                        <div class="battery-icon">
-                            <div class="battery-level" id="batteryLevel"></div>
-                            <div class="battery-terminal"></div>
+            <!-- Simplified Main Dashboard -->
+            <div class="main-dashboard">
+                <!-- Battery Section -->
+                <div class="dashboard-section battery-section">
+                    <h2>⚡ Battery</h2>
+                    <div class="section-content">
+                        <div class="primary-metric">
+                            <div class="metric-value-large" id="victronSocValue">--</div>
+                            <div class="metric-unit">% SOC</div>
                         </div>
-                        <div class="battery-info">
-                            <div class="value-large" id="socValue">--</div>
-                            <div class="value-unit">% SOC</div>
-                            <div class="value-small">
-                                <span id="batteryVoltage">--</span> V
-                                <span id="batteryCurrent">--</span> A
+                        <div class="secondary-metrics">
+                            <div class="metric-row">
+                                <span class="metric-label">Voltage:</span>
+                                <span class="metric-value" id="victronVoltageValue">--</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Current:</span>
+                                <span class="metric-value" id="victronCurrentValue">--</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Power:</span>
+                                <span class="metric-value" id="victronPowerValue">--</span>
+                                <span class="metric-unit">kW</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Temperature:</span>
+                                <span class="metric-value" id="victronTempValue">--</span>
+                                <span class="metric-unit">°C</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Cell Voltage:</span>
+                                <span class="metric-value" id="victronCellVoltageRange">--</span>
+                                <span class="metric-unit">mV</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Motor RPM -->
-                <div class="metric-card">
-                    <h3>Motor</h3>
-                    <div class="value-display">
-                        <div class="value-large" id="motorRpm">0</div>
-                        <div class="value-unit">RPM</div>
-                        <div class="value-small" id="motorDirection">--</div>
-                    </div>
-                </div>
-
-                <!-- Power -->
-                <div class="metric-card">
-                    <h3>Power</h3>
-                    <div class="value-display">
-                        <div class="value-large" id="powerValue">0.0</div>
-                        <div class="value-unit">kW</div>
-                        <div class="value-small" id="powerType">--</div>
+                <!-- Motor/Inverter Section -->
+                <div class="dashboard-section motor-section">
+                    <h2>🔧 Motor & Inverter</h2>
+                    <div class="section-content">
+                        <div class="primary-metric">
+                            <div class="metric-value-large" id="motorRpmValue">--</div>
+                            <div class="metric-unit">RPM</div>
+                        </div>
+                        <div class="secondary-metrics">
+                            <div class="metric-row">
+                                <span class="metric-label">Speed:</span>
+                                <span class="metric-value" id="vehicleSpeedValue">--</span>
+                                <span class="metric-unit">km/h</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Inverter Voltage:</span>
+                                <span class="metric-value" id="inverterVoltageValue">--</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Inverter Current:</span>
+                                <span class="metric-value" id="inverterCurrentValue">--</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Motor Power:</span>
+                                <span class="metric-value" id="motorPowerValue">--</span>
+                                <span class="metric-unit">kW</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Inverter Temp:</span>
+                                <span class="metric-value" id="inverterTempValue">--</span>
+                                <span class="metric-unit">°C</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Motor Temp:</span>
+                                <span class="metric-value" id="motorTempValue">--</span>
+                                <span class="metric-unit">°C</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

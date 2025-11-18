@@ -103,7 +103,51 @@ function updateDashboard(data) {
     // Update timestamp
     updateElement('lastUpdate', formatTime(data.timestamp));
 
-    // Battery SOC
+    // Update component status
+    if (data.components) {
+        updateComponentStatus('statusLeafInverter', data.components.leaf_inverter);
+        updateComponentStatus('statusLeafBattery', data.components.leaf_battery);
+        updateComponentStatus('statusVictronBms', data.components.victron_bms);
+        updateComponentStatus('statusGps', data.components.gps);
+        updateComponentStatus('statusCharger', data.components.charger);
+    }
+
+    // Victron Battery Data (Primary)
+    if (data.victron_soc) {
+        updateElement('victronSocValue', Math.round(data.victron_soc.soc_percent || 0));
+    }
+
+    if (data.victron_pack) {
+        updateElement('victronVoltageValue', (data.victron_pack.voltage || 0).toFixed(1));
+        updateElement('victronCurrentValue', (data.victron_pack.current || 0).toFixed(1));
+        updateElement('victronPowerValue', (data.victron_pack.power_kw || 0).toFixed(2));
+        updateElement('victronTempValue', Math.round(data.victron_pack.temperature || 0));
+    }
+
+    if (data.victron_cells) {
+        const minV = data.victron_cells.min_voltage_mv || 0;
+        const maxV = data.victron_cells.max_voltage_mv || 0;
+        updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
+    }
+
+    // Motor/Inverter Data
+    if (data.motor_rpm) {
+        updateElement('motorRpmValue', Math.round(data.motor_rpm.rpm || 0));
+    }
+
+    if (data.vehicle_speed) {
+        updateElement('vehicleSpeedValue', Math.round(data.vehicle_speed.speed_kmh || 0));
+    }
+
+    if (data.inverter) {
+        updateElement('inverterVoltageValue', (data.inverter.voltage || 0).toFixed(1));
+        updateElement('inverterCurrentValue', (data.inverter.current || 0).toFixed(1));
+        updateElement('motorPowerValue', (data.inverter.power_kw || 0).toFixed(2));
+        updateElement('inverterTempValue', Math.round(data.inverter.temp_inverter || 0));
+        updateElement('motorTempValue', Math.round(data.inverter.temp_motor || 0));
+    }
+
+    // Legacy Battery SOC (for old dashboard elements if still present)
     if (data.battery_soc) {
         const soc = data.battery_soc.soc_percent || 0;
         updateElement('socValue', Math.round(soc));
@@ -219,6 +263,20 @@ function formatTime(isoString) {
     if (!isoString) return '--';
     const date = new Date(isoString);
     return date.toLocaleTimeString();
+}
+
+function updateComponentStatus(elementId, component) {
+    const element = document.getElementById(elementId);
+    if (!element || !component) return;
+
+    // Update online/offline class
+    if (component.online) {
+        element.classList.add('online');
+        element.classList.remove('offline');
+    } else {
+        element.classList.add('offline');
+        element.classList.remove('online');
+    }
 }
 
 // ============================================================================

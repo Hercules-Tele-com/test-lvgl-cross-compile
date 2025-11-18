@@ -7,7 +7,7 @@ Flask web server with REST API and WebSocket support for real-time vehicle monit
 import os
 import sys
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -175,6 +175,66 @@ from(bucket: "{INFLUX_BUCKET}")
         return []
 
 
+def get_component_status() -> Dict[str, Any]:
+    """Check online/offline status of components based on last message time"""
+    if not query_api:
+        return {}
+
+    components = {
+        "leaf_inverter": {"measurement": "inverter", "name": "Leaf Inverter"},
+        "leaf_battery": {"measurement": "battery_soc", "name": "Leaf Battery ECU"},
+        "victron_bms": {"measurement": "victron_pack", "name": "Victron BMS"},
+        "gps": {"measurement": "gps_position", "name": "GPS Module"},
+        "charger": {"measurement": "charger", "name": "Charger"}
+    }
+
+    status = {}
+    timeout_seconds = 5  # Consider offline if no message for 5 seconds
+
+    for comp_id, comp_info in components.items():
+        try:
+            # Query last message time
+            flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -1m)
+  |> filter(fn: (r) => r["_measurement"] == "{comp_info['measurement']}")
+  |> last()
+  |> limit(n: 1)
+            '''
+
+            tables = query_api.query(flux_query)
+
+            online = False
+            last_seen = None
+
+            for table in tables:
+                for record in table.records:
+                    last_time = record.get_time()
+                    if last_time:
+                        # Check if message is recent
+                        age_seconds = (datetime.now(timezone.utc) - last_time).total_seconds()
+                        online = age_seconds < timeout_seconds
+                        last_seen = last_time.isoformat()
+                    break
+                break
+
+            status[comp_id] = {
+                "name": comp_info['name'],
+                "online": online,
+                "last_seen": last_seen
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to check status for {comp_id}: {e}")
+            status[comp_id] = {
+                "name": comp_info['name'],
+                "online": False,
+                "last_seen": None
+            }
+
+    return status
+
+
 # ============================================================================
 # REST API ENDPOINTS
 # ============================================================================
@@ -192,6 +252,7 @@ def api_status():
         # Query latest values for all measurements
         status = {
             "timestamp": datetime.utcnow().isoformat(),
+            "components": get_component_status(),
             "inverter": query_all_fields("inverter"),
             "battery_soc": query_all_fields("battery_soc"),
             "battery_temp": query_all_fields("battery_temp"),
@@ -207,7 +268,8 @@ def api_status():
             "victron_soc": query_all_fields("victron_soc"),
             "victron_limits": query_all_fields("victron_limits"),
             "victron_characteristics": query_all_fields("victron_characteristics"),
-            "victron_alarms": query_all_fields("victron_alarms")
+            "victron_alarms": query_all_fields("victron_alarms"),
+            "victron_cells": query_all_fields("victron_cells")
         }
 
         return jsonify(status)
