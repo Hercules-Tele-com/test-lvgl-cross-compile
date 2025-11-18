@@ -131,6 +131,11 @@ function updateDashboard(data) {
         updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
     }
 
+    // Inverter and Motor Temperatures
+    if (data.inverter) {
+        updateElement('inverterTemp', Math.round(data.inverter.temp_inverter || 0));
+        updateElement('motorTemp', Math.round(data.inverter.temp_motor || 0));
+    }
 
     // Charging
     if (data.charger) {
@@ -245,11 +250,12 @@ function loadHistoricalData() {
     else if (currentTimeRange === '24h') window = '10m';
     else if (currentTimeRange === '7d') window = '1h';
 
-    // Load all charts (Victron data only)
+    // Load all charts
     loadChart('victron_soc', 'soc_percent', 'chartBatterySoc', '%', '#00ff88');
     loadChart('gps_velocity', 'speed_kmh', 'chartSpeed', 'km/h', '#00b4d8');
     loadChart('victron_pack', 'power_kw', 'chartPower', 'kW', '#ff8800');
     loadChart('victron_pack', 'temperature', 'chartBatteryTemp', '°C', '#ff3333');
+    loadInverterMotorTempChart();
     loadVictronVIChart();
 }
 
@@ -264,6 +270,22 @@ function loadChart(measurement, field, canvasId, unit, color) {
         .catch(error => {
             console.error(`Error loading chart ${canvasId}:`, error);
         });
+}
+
+function loadInverterMotorTempChart() {
+    const window = getWindowSize();
+
+    Promise.all([
+        fetch(`/api/historical/inverter/temp_inverter?duration=${currentTimeRange}&window=${window}`).then(r => r.json()),
+        fetch(`/api/historical/inverter/temp_motor?duration=${currentTimeRange}&window=${window}`).then(r => r.json())
+    ]).then(([inverterData, motorData]) => {
+        renderMultiLineChart('chartTemps', [
+            { label: 'Inverter', data: inverterData.data, color: '#ff8800' },
+            { label: 'Motor', data: motorData.data, color: '#ff3333' }
+        ], '°C');
+    }).catch(error => {
+        console.error('Error loading temperature chart:', error);
+    });
 }
 
 function loadVictronVIChart() {
@@ -524,6 +546,7 @@ function loadDetailsData() {
     fetch('/api/status')
         .then(response => response.json())
         .then(data => {
+            updateElement('detailsInverter', JSON.stringify(data.inverter || {}, null, 2));
             updateElement('detailsBattery', JSON.stringify({
                 pack: data.victron_pack || {},
                 soc: data.victron_soc || {},
@@ -531,6 +554,7 @@ function loadDetailsData() {
                 limits: data.victron_limits || {},
                 info: data.victron_info || {}
             }, null, 2));
+            updateElement('detailsMotor', JSON.stringify(data.motor_rpm || {}, null, 2));
             updateElement('detailsGps', JSON.stringify({
                 position: data.gps_position || {},
                 velocity: data.gps_velocity || {},

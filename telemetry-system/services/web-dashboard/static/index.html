@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
@@ -96,8 +97,24 @@
                 </div>
             </div>
 
-            <!-- Charging Status -->
+            <!-- Temperature and Status Row -->
             <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>Inverter Temp</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="inverterTemp">--</div>
+                        <div class="value-unit">°C</div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <h3>Motor Temp</h3>
+                    <div class="value-display">
+                        <div class="value-medium" id="motorTemp">--</div>
+                        <div class="value-unit">°C</div>
+                    </div>
+                </div>
+
                 <div class="metric-card charging" id="chargingCard">
                     <h3>Charging</h3>
                     <div class="value-display">
@@ -354,8 +371,16 @@
             <h2>System Details</h2>
             <div class="details-grid">
                 <div class="detail-section">
+                    <h3>Inverter</h3>
+                    <pre id="detailsInverter">Loading...</pre>
+                </div>
+                <div class="detail-section">
                     <h3>Victron Battery</h3>
                     <pre id="detailsBattery">Loading...</pre>
+                </div>
+                <div class="detail-section">
+                    <h3>Motor</h3>
+                    <pre id="detailsMotor">Loading...</pre>
                 </div>
                 <div class="detail-section">
                     <h3>GPS</h3>

@@ -478,14 +478,15 @@ class CANTelemetryLogger:
         point = None
 
         # Parse based on CAN ID
-        # Leaf BMS data disabled (incorrect parsing - to be fixed later)
-        # if msg.arbitration_id == CAN_ID_INVERTER_TELEMETRY:
-        #     point = self.parse_inverter_telemetry(msg.data)
+        # Inverter telemetry enabled
+        if msg.arbitration_id == CAN_ID_INVERTER_TELEMETRY:
+            point = self.parse_inverter_telemetry(msg.data)
+        # Leaf BMS battery data disabled (incorrect parsing - to be fixed later)
         # elif msg.arbitration_id == CAN_ID_BATTERY_SOC:
         #     point = self.parse_battery_soc(msg.data)
         # elif msg.arbitration_id == CAN_ID_BATTERY_TEMP:
         #     point = self.parse_battery_temp(msg.data)
-        if msg.arbitration_id == CAN_ID_VEHICLE_SPEED:
+        elif msg.arbitration_id == CAN_ID_VEHICLE_SPEED:
             point = self.parse_vehicle_speed(msg.data)
         elif msg.arbitration_id == CAN_ID_MOTOR_RPM:
             point = self.parse_motor_rpm(msg.data)
