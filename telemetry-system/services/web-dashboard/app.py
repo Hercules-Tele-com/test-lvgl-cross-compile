@@ -39,9 +39,6 @@ INFLUX_ORG = os.getenv("INFLUX_ORG", "leaf-telemetry")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "leaf-data")
 INFLUX_TOKEN = os.getenv("INFLUX_WEB_TOKEN", "")
 
-if not INFLUX_TOKEN:
-    raise ValueError("INFLUX_WEB_TOKEN environment variable not set")
-
 # Global InfluxDB client
 influx_client: Optional[InfluxDBClient] = None
 query_api: Optional[QueryApi] = None
@@ -49,8 +46,13 @@ trip_tracker: Optional[TripTracker] = None
 
 
 def init_influxdb():
-    """Initialize InfluxDB client"""
+    """Initialize InfluxDB client (optional - dashboard works without it)"""
     global influx_client, query_api, trip_tracker
+
+    if not INFLUX_TOKEN:
+        logger.warning("INFLUX_WEB_TOKEN not set - dashboard will run without InfluxDB (no data logging)")
+        return False
+
     try:
         logger.info(f"Connecting to InfluxDB: {INFLUX_URL}")
         influx_client = InfluxDBClient(
@@ -74,11 +76,15 @@ def init_influxdb():
             return False
     except Exception as e:
         logger.error(f"Failed to connect to InfluxDB: {e}")
+        logger.warning("Dashboard will continue without InfluxDB")
         return False
 
 
 def query_latest_value(measurement: str, field: str, tag_filters: str = "") -> Optional[Dict[str, Any]]:
     """Query the latest value for a measurement/field"""
+    if not query_api:
+        return None
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -108,6 +114,9 @@ from(bucket: "{INFLUX_BUCKET}")
 
 def query_all_fields(measurement: str, tag_filters: str = "") -> Dict[str, Any]:
     """Query all fields for a measurement"""
+    if not query_api:
+        return {}
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -137,6 +146,9 @@ from(bucket: "{INFLUX_BUCKET}")
 
 def query_historical_data(measurement: str, field: str, duration: str = "24h", window: str = "5m") -> List[Dict[str, Any]]:
     """Query historical data with aggregation"""
+    if not query_api:
+        return []
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
