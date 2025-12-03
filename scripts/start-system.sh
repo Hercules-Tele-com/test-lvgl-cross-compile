@@ -39,6 +39,7 @@ sleep 2
 # 3. Start telemetry services
 echo "Starting telemetry services..."
 sudo systemctl start telemetry-logger.service
+sudo systemctl start telemetry-logger-can1.service
 sudo systemctl start cloud-sync.service
 sudo systemctl start web-dashboard.service
 
@@ -50,6 +51,7 @@ echo "Service Status:"
 echo "================================"
 systemctl status influxdb --no-pager -l | grep Active
 systemctl status telemetry-logger.service --no-pager -l | grep Active
+systemctl status telemetry-logger-can1.service --no-pager -l | grep Active
 systemctl status cloud-sync.service --no-pager -l | grep Active
 systemctl status web-dashboard.service --no-pager -l | grep Active
 
