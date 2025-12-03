@@ -287,7 +287,9 @@ Recommended extensions:
 
 The telemetry system provides comprehensive data logging, cloud synchronization, and web-based monitoring:
 
-- **Telemetry Logger**: Python service that reads CAN messages and writes to local InfluxDB
+- **Unified Telemetry Logger**: Python service that monitors multiple CAN interfaces (can0, can1) simultaneously
+- **Cell Voltage Tracking**: Extracts individual cell voltages (up to 144 cells) from EMBOO/Orion BMS
+- **Fault Management**: Real-time fault detection and logging for battery/motor systems
 - **Cloud Sync**: Automatically syncs data to InfluxDB Cloud when network is available
 - **Web Dashboard**: Flask-based web UI with real-time updates and historical charts
 - **Offline Capability**: Works completely offline with local storage and syncs when connection returns
@@ -295,11 +297,17 @@ The telemetry system provides comprehensive data logging, cloud synchronization,
 ### Architecture
 
 ```
-CAN Bus (can0) → Telemetry Logger → InfluxDB (Local)
-                                          ↓
-                                    Cloud Sync → InfluxDB Cloud
-                                          ↓
-                                    Web Dashboard (Port 8080)
+CAN Bus (can0, can1) → Unified Telemetry Logger → InfluxDB (Local)
+                                                        ↓
+                                                  Cloud Sync → InfluxDB Cloud
+                                                        ↓
+                                                  Web Dashboard (Port 8080)
+
+Telemetry Logger Features:
+- Dual CAN interface support (configurable bitrates)
+- EMBOO battery: cell voltages (144 cells), SOC, temps, faults
+- ROAM motor: torque, RPM, voltages, currents, temps
+- Per-interface statistics tracking
 ```
 
 ### Quick Start
@@ -314,31 +322,43 @@ cp config/influxdb-cloud.env.template config/influxdb-cloud.env
 nano config/influxdb-cloud.env
 
 # Install and start services
-sudo cp systemd/*.service /etc/systemd/system/
+sudo cp systemd/telemetry-logger-unified.service /etc/systemd/system/
+sudo cp systemd/cloud-sync.service /etc/systemd/system/
+sudo cp systemd/web-dashboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now telemetry-logger cloud-sync web-dashboard
+sudo systemctl enable --now telemetry-logger-unified cloud-sync web-dashboard
 
 # Access web dashboard
 # http://<pi-ip>:8080
+
+# If you encounter InfluxDB field type conflicts, clear the database:
+cd telemetry-system
+./scripts/clear-influxdb-data.sh
 ```
 
 ### Service Management
 
 ```bash
-# View logs
-sudo journalctl -u telemetry-logger.service -f
+# View logs (unified logger shows per-interface stats)
+sudo journalctl -u telemetry-logger-unified.service -f
 sudo journalctl -u cloud-sync.service -f
 sudo journalctl -u web-dashboard.service -f
 
 # Restart services
-sudo systemctl restart telemetry-logger.service
+sudo systemctl restart telemetry-logger-unified.service
 sudo systemctl restart cloud-sync.service
 sudo systemctl restart web-dashboard.service
 
 # Check status
-systemctl status telemetry-logger.service
+systemctl status telemetry-logger-unified.service
 systemctl status cloud-sync.service
 systemctl status web-dashboard.service
+
+# Use convenience scripts
+cd scripts
+./start-system.sh    # Start all services
+./stop-system.sh     # Stop all services
+./check-system.sh    # System health check
 ```
 
 ### Testing
