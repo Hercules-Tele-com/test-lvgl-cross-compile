@@ -150,7 +150,7 @@ void DashboardUI::updateTime(uint8_t h, uint8_t m, uint8_t s) {
 void DashboardUI::updateSpeedDisplay(float speed_kmh) {
     if (!speed_label) return;
     int speed = (int)(speed_kmh + 0.5f);  // Round to nearest integer
-    lv_label_set_text_fmt(speed_label, "%d kph", speed);
+    lv_label_set_text_fmt(speed_label, "%d\nkph", speed);
 }
 
 void DashboardUI::updateBatterySOC(uint8_t soc_percent) {
