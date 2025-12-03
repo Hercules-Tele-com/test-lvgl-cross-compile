@@ -27,8 +27,8 @@ CAN_ID_CHARGER_STATUS = 0x390
 # EMBOO Battery CAN IDs (Orion BMS)
 CAN_ID_EMBOO_PACK_STATUS = 0x6B0
 CAN_ID_EMBOO_PACK_STATS = 0x6B1
-CAN_ID_EMBOO_STATUS_FLAGS = 0x6B2
-CAN_ID_EMBOO_CELL_VOLTAGES = 0x6B3
+CAN_ID_EMBOO_STATUS_FLAGS = 0x6B2   # Fault/status flags
+CAN_ID_EMBOO_CELL_VOLTAGES = 0x6B3  # Individual cell voltages
 CAN_ID_EMBOO_TEMPERATURES = 0x6B4
 CAN_ID_EMBOO_PACK_SUMMARY = 0x351
 CAN_ID_EMBOO_PACK_DATA1 = 0x355
@@ -110,6 +110,14 @@ class CANTelemetryLogger:
                 'error_count': 0,
                 'last_stats_time': time.time()
             }
+
+        # Cell voltage tracking (for multi-message cell data)
+        self.cell_voltages = {}  # {cell_id: voltage}
+        self.last_cell_write = 0
+
+        # Fault tracking
+        self.active_faults = set()
+        self.fault_counts = {}
 
     def init(self) -> bool:
         """Initialize CAN buses and InfluxDB connection"""
@@ -381,7 +389,127 @@ class CANTelemetryLogger:
             .field("temp_max", int(high_temp)) \
             .field("temp_min", int(low_temp)) \
             .field("temp_avg", float((high_temp + low_temp) / 2.0)) \
-            .field("temp_delta", int(high_temp - low_temp))
+            .field("temp_delta", float(high_temp - low_temp))
+
+        return point
+
+    def parse_emboo_cell_voltages(self, data: bytes) -> Optional[Point]:
+        """Parse EMBOO cell voltages (0x6B3) - Orion BMS format"""
+        if len(data) < 8:
+            return None
+
+        # Orion BMS sends cell voltages in multiple messages
+        # Format: [cell_id, voltage_low, voltage_high, cell_id+1, voltage_low, voltage_high, ...]
+        # Voltage resolution: 0.0001V, little-endian 16-bit
+
+        try:
+            # First cell pair
+            cell_id_1 = data[0]
+            voltage_1 = int.from_bytes([data[1], data[2]], 'little') * 0.0001  # V
+
+            # Second cell pair (if present)
+            if len(data) >= 6:
+                cell_id_2 = data[3]
+                voltage_2 = int.from_bytes([data[4], data[5]], 'little') * 0.0001  # V
+
+                # Store in tracking dict
+                self.cell_voltages[cell_id_1] = voltage_1
+                self.cell_voltages[cell_id_2] = voltage_2
+            else:
+                self.cell_voltages[cell_id_1] = voltage_1
+
+            # Write all cells periodically (every 2 seconds)
+            now = time.time()
+            if now - self.last_cell_write >= 2.0 and len(self.cell_voltages) > 0:
+                # Calculate min/max/avg
+                voltages = list(self.cell_voltages.values())
+                min_voltage = min(voltages)
+                max_voltage = max(voltages)
+                avg_voltage = sum(voltages) / len(voltages)
+
+                point = Point("battery_cells") \
+                    .tag("source", "emboo_bms") \
+                    .field("cell_count", len(voltages)) \
+                    .field("voltage_min", float(min_voltage)) \
+                    .field("voltage_max", float(max_voltage)) \
+                    .field("voltage_avg", float(avg_voltage)) \
+                    .field("voltage_delta", float(max_voltage - min_voltage))
+
+                # Add individual cell voltages (up to 20 cells to avoid field explosion)
+                for cell_id, voltage in list(self.cell_voltages.items())[:20]:
+                    point.field(f"cell_{cell_id:02d}", float(voltage))
+
+                self.last_cell_write = now
+                return point
+
+        except Exception as e:
+            logger.error(f"Error parsing cell voltages: {e}")
+
+        return None
+
+    def parse_emboo_status_flags(self, data: bytes) -> Optional[Point]:
+        """Parse EMBOO status flags (0x6B2) - Fault detection"""
+        if len(data) < 8:
+            return None
+
+        # Orion BMS status flags (specific bits indicate faults)
+        # Bytes 0-7 contain various status and fault flags
+        status_byte_0 = data[0]
+        status_byte_1 = data[1]
+        status_byte_2 = data[2]
+        status_byte_3 = data[3]
+
+        # Decode fault flags (Orion BMS specific)
+        faults = []
+        fault_bits = (status_byte_3 << 24) | (status_byte_2 << 16) | (status_byte_1 << 8) | status_byte_0
+
+        # Common Orion BMS faults
+        if status_byte_0 & 0x01:
+            faults.append("discharge_overcurrent")
+        if status_byte_0 & 0x02:
+            faults.append("charge_overcurrent")
+        if status_byte_0 & 0x04:
+            faults.append("cell_overvoltage")
+        if status_byte_0 & 0x08:
+            faults.append("cell_undervoltage")
+        if status_byte_0 & 0x10:
+            faults.append("over_temperature")
+        if status_byte_0 & 0x20:
+            faults.append("under_temperature")
+        if status_byte_1 & 0x01:
+            faults.append("communication_fault")
+        if status_byte_1 & 0x02:
+            faults.append("internal_fault")
+        if status_byte_3 & 0x04:
+            faults.append("cell_imbalance")
+
+        # Log new faults
+        current_faults = set(faults)
+        new_faults = current_faults - self.active_faults
+        cleared_faults = self.active_faults - current_faults
+
+        for fault in new_faults:
+            logger.warning(f"⚠️  NEW FAULT: {fault}")
+            self.fault_counts[fault] = self.fault_counts.get(fault, 0) + 1
+
+        for fault in cleared_faults:
+            logger.info(f"✓ CLEARED: {fault}")
+
+        self.active_faults = current_faults
+
+        # Create InfluxDB point
+        point = Point("battery_faults") \
+            .tag("source", "emboo_bms") \
+            .field("fault_count", len(faults)) \
+            .field("status_raw", int(fault_bits))
+
+        # Add individual fault flags
+        for fault in faults:
+            point.field(f"fault_{fault}", 1)
+
+        # Add total fault occurrences
+        for fault, count in self.fault_counts.items():
+            point.field(f"total_{fault}", int(count))
 
         return point
 
@@ -429,13 +557,13 @@ class CANTelemetryLogger:
             return None
 
         # Little-endian pairs, 0.1V resolution
-        dc_bus_voltage = int.from_bytes([data[0], data[1]], 'little') * 0.1  # V
-        output_voltage = int.from_bytes([data[2], data[3]], 'little') * 0.1  # V
+        dc_bus_voltage = int.from_bytes([data[0], data[1]], 'little')  # 0.1V units
+        output_voltage = int.from_bytes([data[2], data[3]], 'little')  # 0.1V units
 
         point = Point("motor_voltage") \
             .tag("source", "roam_motor") \
-            .field("dc_bus_voltage", float(dc_bus_voltage)) \
-            .field("output_voltage", float(output_voltage))
+            .field("dc_bus_voltage", int(dc_bus_voltage)) \
+            .field("output_voltage", int(output_voltage))
 
         return point
 
@@ -520,6 +648,10 @@ class CANTelemetryLogger:
             point = self.parse_emboo_pack_status(msg.data)
         elif msg.arbitration_id == CAN_ID_EMBOO_TEMPERATURES:
             point = self.parse_emboo_temperatures(msg.data)
+        elif msg.arbitration_id == CAN_ID_EMBOO_CELL_VOLTAGES:
+            point = self.parse_emboo_cell_voltages(msg.data)
+        elif msg.arbitration_id == CAN_ID_EMBOO_STATUS_FLAGS:
+            point = self.parse_emboo_status_flags(msg.data)
         # ROAM Motor CAN IDs
         elif msg.arbitration_id == CAN_ID_ROAM_TORQUE:
             point = self.parse_roam_torque(msg.data)
