@@ -1,0 +1,72 @@
+#!/bin/bash
+# Quick system health check for Nissan Leaf CAN Network
+
+echo "==================================================================="
+echo "  Nissan Leaf CAN Network System Status"
+echo "==================================================================="
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "CAN Interface:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if ip link show can0 >/dev/null 2>&1; then
+    ip -details link show can0 | grep -E "can0|bitrate|state"
+    echo ""
+
+    # Check for errors
+    echo "CAN Statistics:"
+    ip -details -statistics link show can0 | grep -E "RX|TX|errors"
+else
+    echo "✗ CAN interface not found"
+fi
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Services:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+printf "%-20s %s\n" "InfluxDB:" "$(systemctl is-active influxdb 2>/dev/null || echo 'inactive')"
+printf "%-20s %s\n" "Telemetry Logger:" "$(systemctl is-active telemetry-logger.service 2>/dev/null || echo 'inactive')"
+printf "%-20s %s\n" "Cloud Sync:" "$(systemctl is-active cloud-sync.service 2>/dev/null || echo 'inactive')"
+printf "%-20s %s\n" "Web Dashboard:" "$(systemctl is-active web-dashboard.service 2>/dev/null || echo 'inactive')"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "CAN Message Activity (5 second sample):"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if ip link show can0 >/dev/null 2>&1 && [ "$(ip link show can0 | grep -c 'state UP')" -eq 1 ]; then
+    MSG_COUNT=$(timeout 5 candump can0 2>/dev/null | wc -l)
+    if [ "$MSG_COUNT" -gt 0 ]; then
+        echo "✓ Received $MSG_COUNT messages in 5 seconds (~$((MSG_COUNT/5)) msg/sec)"
+    else
+        echo "⚠ No CAN messages received in 5 seconds"
+    fi
+else
+    echo "✗ CAN interface is down"
+fi
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Web Dashboard:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if curl -s http://localhost:8080/api/status >/dev/null 2>&1; then
+    IP_ADDR=$(hostname -I | awk '{print $1}')
+    echo "✓ Web dashboard accessible at http://$IP_ADDR:8080"
+else
+    echo "✗ Web dashboard not responding"
+fi
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "System Resources:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "CPU Temperature: $(vcgencmd measure_temp 2>/dev/null || echo 'N/A')"
+echo "Memory Usage:"
+free -h | grep -E "Mem:|Swap:"
+echo ""
+echo "Disk Usage:"
+df -h / | tail -1 | awk '{printf "  Root: %s used of %s (%s)\n", $3, $2, $5}'
+echo ""
+
+echo "==================================================================="
+echo "  End of Status Report"
+echo "==================================================================="
