@@ -77,6 +77,7 @@ class CANTelemetryLogger:
         self.influx_org = os.getenv("INFLUX_ORG", "leaf-telemetry")
         self.influx_bucket = os.getenv("INFLUX_BUCKET", "leaf-data")
         self.influx_token = os.getenv("INFLUX_LOGGER_TOKEN", "")
+        self.can_bitrate = int(os.getenv("CAN_BITRATE", "250000"))  # Default to EMBOO (250 kbps)
 
         if not self.influx_token:
             raise ValueError("INFLUX_LOGGER_TOKEN environment variable not set")
@@ -91,11 +92,11 @@ class CANTelemetryLogger:
         """Initialize CAN bus and InfluxDB connection"""
         try:
             # Initialize CAN bus
-            logger.info(f"Initializing CAN interface: {self.can_interface}")
+            logger.info(f"Initializing CAN interface: {self.can_interface} at {self.can_bitrate} bps")
             self.bus = can.Bus(
                 interface='socketcan',
                 channel=self.can_interface,
-                bitrate=500000
+                bitrate=self.can_bitrate
             )
             logger.info("CAN bus initialized successfully")
 

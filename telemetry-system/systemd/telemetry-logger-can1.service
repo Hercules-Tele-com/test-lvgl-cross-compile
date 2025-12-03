@@ -13,6 +13,7 @@ WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/s
 EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
 Environment=CAN_INTERFACE=can1
+Environment=CAN_BITRATE=250000
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
 Restart=always
 RestartSec=10
