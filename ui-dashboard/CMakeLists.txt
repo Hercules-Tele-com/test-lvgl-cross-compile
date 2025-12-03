@@ -24,7 +24,8 @@ set(BATTERY_TYPE "EMBOO" CACHE STRING "Battery type: NISSAN_LEAF or EMBOO")
 set_property(CACHE BATTERY_TYPE PROPERTY STRINGS "NISSAN_LEAF" "EMBOO")
 
 # Motor type configuration
-set(MOTOR_TYPE "NISSAN" CACHE STRING "Motor type: NISSAN or ROAM")
+# Default to ROAM to match config/hardware_config.h
+set(MOTOR_TYPE "ROAM" CACHE STRING "Motor type: NISSAN or ROAM")
 set_property(CACHE MOTOR_TYPE PROPERTY STRINGS "NISSAN" "ROAM")
 
 # Add config directory to include path so hardware_config.h is available
