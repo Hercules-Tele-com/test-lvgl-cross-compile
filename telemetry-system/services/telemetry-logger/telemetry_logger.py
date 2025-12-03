@@ -16,12 +16,34 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # CAN message definitions (matching LeafCANMessages.h)
+# Nissan Leaf CAN IDs
 CAN_ID_INVERTER_TELEMETRY = 0x1F2
 CAN_ID_BATTERY_SOC = 0x1DB
 CAN_ID_BATTERY_TEMP = 0x1DC
 CAN_ID_VEHICLE_SPEED = 0x1D4
 CAN_ID_MOTOR_RPM = 0x1DA
 CAN_ID_CHARGER_STATUS = 0x390
+
+# EMBOO Battery CAN IDs (Orion BMS)
+CAN_ID_EMBOO_PACK_STATUS = 0x6B0
+CAN_ID_EMBOO_PACK_STATS = 0x6B1
+CAN_ID_EMBOO_STATUS_FLAGS = 0x6B2
+CAN_ID_EMBOO_CELL_VOLTAGES = 0x6B3
+CAN_ID_EMBOO_TEMPERATURES = 0x6B4
+CAN_ID_EMBOO_PACK_SUMMARY = 0x351
+CAN_ID_EMBOO_PACK_DATA1 = 0x355
+CAN_ID_EMBOO_PACK_DATA2 = 0x356
+
+# ROAM Motor Controller CAN IDs (RM100)
+CAN_ID_ROAM_TEMP_1 = 0x0A0
+CAN_ID_ROAM_TEMP_2 = 0x0A1
+CAN_ID_ROAM_TEMP_3 = 0x0A2
+CAN_ID_ROAM_POSITION = 0x0A5
+CAN_ID_ROAM_CURRENT = 0x0A6
+CAN_ID_ROAM_VOLTAGE = 0x0A7
+CAN_ID_ROAM_TORQUE = 0x0AC
+
+# Custom ESP32 module CAN IDs
 CAN_ID_GPS_POSITION = 0x710
 CAN_ID_GPS_VELOCITY = 0x711
 CAN_ID_GPS_TIME = 0x712
@@ -291,6 +313,149 @@ class CANTelemetryLogger:
 
         return point
 
+    # ============================================================================
+    # EMBOO Battery Parsers
+    # ============================================================================
+
+    def parse_emboo_pack_status(self, data: bytes) -> Optional[Point]:
+        """Parse EMBOO pack status (0x6B0)"""
+        if len(data) < 8:
+            return None
+
+        # Big-endian format
+        pack_current = int.from_bytes(data[0:2], 'big', signed=True) * 0.1  # A
+        pack_voltage = int.from_bytes(data[2:4], 'big') * 0.1  # V
+        pack_soc = data[6] * 0.5  # %
+
+        point = Point("battery_soc") \
+            .tag("source", "emboo_bms") \
+            .field("soc_percent", float(pack_soc)) \
+            .field("pack_voltage", float(pack_voltage)) \
+            .field("pack_current", float(pack_current)) \
+            .field("pack_power_kw", float(pack_voltage * pack_current / 1000.0))
+
+        return point
+
+    def parse_emboo_temperatures(self, data: bytes) -> Optional[Point]:
+        """Parse EMBOO temperatures (0x6B4)"""
+        if len(data) < 8:
+            return None
+
+        # Big-endian format
+        high_temp = int.from_bytes(data[2:4], 'big') * 0.1  # °C
+        low_temp = int.from_bytes(data[4:6], 'big') * 0.1  # °C
+
+        point = Point("battery_temp") \
+            .tag("source", "emboo_bms") \
+            .field("temp_max", float(high_temp)) \
+            .field("temp_min", float(low_temp)) \
+            .field("temp_avg", float((high_temp + low_temp) / 2.0)) \
+            .field("temp_delta", float(high_temp - low_temp))
+
+        return point
+
+    # ============================================================================
+    # ROAM Motor Controller Parsers
+    # ============================================================================
+
+    def parse_roam_torque(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor torque (0x0AC)"""
+        if len(data) < 4:
+            return None
+
+        # Little-endian format
+        torque_request = int.from_bytes(data[0:2], 'little', signed=True)  # Nm
+        torque_actual = int.from_bytes(data[2:4], 'little', signed=True)  # Nm
+
+        point = Point("motor_torque") \
+            .tag("source", "roam_motor") \
+            .field("torque_request", int(torque_request)) \
+            .field("torque_actual", int(torque_actual))
+
+        return point
+
+    def parse_roam_position(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor position/RPM (0x0A5)"""
+        if len(data) < 8:
+            return None
+
+        # Big-endian pairs
+        motor_angle = (data[0] << 8) | data[1]  # degrees
+        motor_rpm = int.from_bytes([data[2], data[3]], 'big', signed=True)
+        electrical_freq = (data[4] << 8) | data[5]  # Hz
+
+        point = Point("motor_rpm") \
+            .tag("source", "roam_motor") \
+            .field("rpm", int(motor_rpm)) \
+            .field("motor_angle", int(motor_angle)) \
+            .field("electrical_freq", int(electrical_freq))
+
+        return point
+
+    def parse_roam_voltage(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor voltage (0x0A7)"""
+        if len(data) < 8:
+            return None
+
+        # Big-endian pairs
+        dc_bus_voltage = (data[0] << 8) | data[1]  # V
+        output_voltage = (data[2] << 8) | data[3]  # V
+
+        point = Point("motor_voltage") \
+            .tag("source", "roam_motor") \
+            .field("dc_bus_voltage", int(dc_bus_voltage)) \
+            .field("output_voltage", int(output_voltage))
+
+        return point
+
+    def parse_roam_current(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor current (0x0A6)"""
+        if len(data) < 8:
+            return None
+
+        # Big-endian pairs, signed
+        phase_a = int.from_bytes([data[0], data[1]], 'big', signed=True)
+        phase_b = int.from_bytes([data[2], data[3]], 'big', signed=True)
+        phase_c = int.from_bytes([data[4], data[5]], 'big', signed=True)
+        dc_bus_current = int.from_bytes([data[6], data[7]], 'big', signed=True)
+
+        point = Point("motor_current") \
+            .tag("source", "roam_motor") \
+            .field("phase_a_current", int(phase_a)) \
+            .field("phase_b_current", int(phase_b)) \
+            .field("phase_c_current", int(phase_c)) \
+            .field("dc_bus_current", int(dc_bus_current))
+
+        return point
+
+    def parse_roam_temp_2(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor temperatures #2 (0x0A1)"""
+        if len(data) < 8:
+            return None
+
+        # Little-endian pairs, °C * 10
+        control_board_temp = int.from_bytes([data[0], data[1]], 'little', signed=True) / 10.0
+
+        point = Point("inverter") \
+            .tag("source", "roam_motor") \
+            .field("temp_inverter", float(control_board_temp))
+
+        return point
+
+    def parse_roam_temp_3(self, data: bytes) -> Optional[Point]:
+        """Parse ROAM motor temperatures #3 (0x0A2)"""
+        if len(data) < 8:
+            return None
+
+        # Little-endian pairs, °C * 10
+        stator_temp = int.from_bytes([data[4], data[5]], 'little', signed=True) / 10.0
+
+        point = Point("motor_temp") \
+            .tag("source", "roam_motor") \
+            .field("temp_motor", float(stator_temp))
+
+        return point
+
     def process_can_message(self, msg: can.Message):
         """Process a single CAN message and write to InfluxDB"""
         self.msg_count += 1
@@ -318,6 +483,24 @@ class CANTelemetryLogger:
             point = self.parse_body_temp(msg.data)
         elif msg.arbitration_id == CAN_ID_BODY_VOLTAGE:
             point = self.parse_body_voltage(msg.data)
+        # EMBOO Battery CAN IDs
+        elif msg.arbitration_id == CAN_ID_EMBOO_PACK_STATUS:
+            point = self.parse_emboo_pack_status(msg.data)
+        elif msg.arbitration_id == CAN_ID_EMBOO_TEMPERATURES:
+            point = self.parse_emboo_temperatures(msg.data)
+        # ROAM Motor CAN IDs
+        elif msg.arbitration_id == CAN_ID_ROAM_TORQUE:
+            point = self.parse_roam_torque(msg.data)
+        elif msg.arbitration_id == CAN_ID_ROAM_POSITION:
+            point = self.parse_roam_position(msg.data)
+        elif msg.arbitration_id == CAN_ID_ROAM_VOLTAGE:
+            point = self.parse_roam_voltage(msg.data)
+        elif msg.arbitration_id == CAN_ID_ROAM_CURRENT:
+            point = self.parse_roam_current(msg.data)
+        elif msg.arbitration_id == CAN_ID_ROAM_TEMP_2:
+            point = self.parse_roam_temp_2(msg.data)
+        elif msg.arbitration_id == CAN_ID_ROAM_TEMP_3:
+            point = self.parse_roam_temp_3(msg.data)
 
         # Write to InfluxDB
         if point:
