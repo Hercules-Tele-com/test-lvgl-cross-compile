@@ -9,13 +9,13 @@ Requires=influxdb.service
 Type=simple
 User=emboo
 Group=emboo
-WorkingDirectory=/home/emboo/test-lvgl-cross-compile/telemetry-system/services/cloud-sync
-EnvironmentFile=/home/emboo/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
-EnvironmentFile=/home/emboo/test-lvgl-cross-compile/telemetry-system/config/influxdb-cloud.env
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/cloud-sync
+EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
+EnvironmentFile=-/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-cloud.env
 Environment=PYTHONUNBUFFERED=1
 Environment=SYNC_INTERVAL_SECONDS=300
 Environment=NETWORK_CHECK_URL=https://1.1.1.1
-ExecStart=/usr/bin/python3 /home/emboo/test-lvgl-cross-compile/telemetry-system/services/cloud-sync/cloud_sync.py
+ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/cloud-sync/cloud_sync.py
 Restart=always
 RestartSec=30
 StandardOutput=journal

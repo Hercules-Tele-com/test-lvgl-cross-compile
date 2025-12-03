@@ -9,12 +9,12 @@ Wants=network.target
 Type=simple
 User=emboo
 Group=emboo
-WorkingDirectory=/home/emboo/test-lvgl-cross-compile/telemetry-system/services/web-dashboard
-EnvironmentFile=/home/emboo/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/web-dashboard
+EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
 Environment=WEB_PORT=8080
 Environment=SECRET_KEY=change-this-in-production
-ExecStart=/usr/bin/python3 /home/emboo/test-lvgl-cross-compile/telemetry-system/services/web-dashboard/app.py
+ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/web-dashboard/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
