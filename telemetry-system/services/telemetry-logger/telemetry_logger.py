@@ -175,8 +175,8 @@ class CANTelemetryLogger:
             .tag("source", "leaf_ecu") \
             .field("voltage", float(voltage)) \
             .field("current", float(current)) \
-            .field("temp_inverter", int(temp_inverter)) \
-            .field("temp_motor", int(temp_motor)) \
+            .field("temp_inverter", float(temp_inverter)) \
+            .field("temp_motor", float(temp_motor)) \
             .field("status_flags", int(status_flags)) \
             .field("power_kw", float(voltage * current / 1000.0))
 
@@ -214,9 +214,9 @@ class CANTelemetryLogger:
 
         point = Point("battery_temp") \
             .tag("source", "leaf_ecu") \
-            .field("temp_max", int(temp_max)) \
-            .field("temp_min", int(temp_min)) \
-            .field("temp_avg", int(temp_avg)) \
+            .field("temp_max", float(temp_max)) \
+            .field("temp_min", float(temp_min)) \
+            .field("temp_avg", float(temp_avg)) \
             .field("temp_delta", float(temp_max - temp_min)) \
             .field("sensor_count", int(sensor_count))
 
@@ -386,8 +386,8 @@ class CANTelemetryLogger:
 
         point = Point("battery_temp") \
             .tag("source", "emboo_bms") \
-            .field("temp_max", int(high_temp)) \
-            .field("temp_min", int(low_temp)) \
+            .field("temp_max", float(high_temp)) \
+            .field("temp_min", float(low_temp)) \
             .field("temp_avg", float((high_temp + low_temp) / 2.0)) \
             .field("temp_delta", float(high_temp - low_temp))
 
