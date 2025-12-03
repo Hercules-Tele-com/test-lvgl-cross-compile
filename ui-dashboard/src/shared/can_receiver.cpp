@@ -179,6 +179,126 @@ void CANReceiver::processCANMessage(uint32_t can_id, uint8_t len, const uint8_t*
         fflush(stdout);
 #endif
     }
+
+#ifdef EMBOO_BATTERY
+    // ========================================================================
+    // EMBOO BATTERY MESSAGES (Orion BMS / ENNOID-style)
+    // ========================================================================
+
+    // 0x6B0: Pack Status (voltage, current, SOC)
+    else if (baseId == 0x6B0 && len >= 8) {
+        // Current (big-endian, signed, 0.1A scale)
+        int16_t current_raw = (int16_t)((data[0] << 8) | data[1]);
+        float pack_current = current_raw * 0.1f;
+
+        // Voltage (big-endian, 0.1V scale)
+        uint16_t voltage_raw = (data[2] << 8) | data[3];
+        float pack_voltage = voltage_raw * 0.1f;
+
+        // SOC (0.5% scale)
+        uint8_t soc_raw = data[6];
+        float pack_soc = soc_raw * 0.5f;
+
+        // Store values (convert to match existing format)
+        battery_voltage_.store((uint16_t)(pack_voltage * 100), std::memory_order_relaxed); // V * 100
+        battery_current_.store((int16_t)(pack_current * 10), std::memory_order_relaxed);   // A * 10
+        soc_.store((uint16_t)pack_soc, std::memory_order_relaxed);                        // %
+
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x6B0] Pack Status: %.1fV, %.1fA, %.1f%% SOC\n",
+               pack_voltage, pack_current, pack_soc);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x6B1: Pack Stats (min/max cell voltages and temps)
+    else if (baseId == 0x6B1 && len >= 8) {
+        // High temperature (1.0°C scale)
+        uint8_t high_temp = data[2];
+
+        // Pack summed voltage (big-endian, 0.01V scale)
+        uint16_t summed_v_raw = (data[5] << 8) | data[6];
+        float summed_voltage = summed_v_raw * 0.01f;
+
+        battery_temperature_.store((uint16_t)(high_temp * 10), std::memory_order_relaxed); // °C * 10
+
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x6B1] Pack Stats: HighTemp=%u°C, SumV=%.2fV\n",
+               (unsigned)high_temp, summed_voltage);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x6B2: Status Flags
+    else if (baseId == 0x6B2 && len >= 8) {
+        uint8_t status_flags = data[0];
+        uint8_t error_flags = data[3];
+
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x6B2] Status: 0x%02X, Errors: 0x%02X\n",
+               (unsigned)status_flags, (unsigned)error_flags);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x6B3: Individual Cell Voltages
+    else if (baseId == 0x6B3 && len >= 8) {
+        uint8_t cell_id = data[0];
+
+        // Skip header frames (cell_id > 100 indicates status frames)
+        if (cell_id <= 100) {
+            // Cell voltage (big-endian, 0.0001V scale)
+            uint16_t cell_v_raw = (data[1] << 8) | data[2];
+            float cell_voltage = cell_v_raw * 0.0001f;
+
+            // Cell resistance (15 bits, 0.01 mOhm) + balancing (1 bit)
+            uint16_t resistance_raw = (data[3] << 8) | data[4];
+            float cell_resistance = (resistance_raw & 0x7FFF) * 0.01f;
+            bool cell_balancing = (resistance_raw & 0x8000) != 0;
+
+            // Update min/max cell voltages if this is within range
+            uint16_t cell_v_mv = (uint16_t)(cell_voltage * 1000);
+            uint16_t current_max = max_cell_voltage_.load(std::memory_order_relaxed);
+            uint16_t current_min = min_cell_voltage_.load(std::memory_order_relaxed);
+
+            if (current_max == 0 || cell_v_mv > current_max) {
+                max_cell_voltage_.store(cell_v_mv, std::memory_order_relaxed);
+            }
+            if (current_min == 0 || cell_v_mv < current_min) {
+                min_cell_voltage_.store(cell_v_mv, std::memory_order_relaxed);
+            }
+
+#if CAN_DEBUG
+            printf("[0x6B3] Cell %u: %.4fV, %.2fmΩ, Balancing: %d\n",
+                   (unsigned)cell_id, cell_voltage, cell_resistance, cell_balancing);
+            fflush(stdout);
+#endif
+        }
+    }
+
+    // 0x6B4: Temperature Data
+    else if (baseId == 0x6B4 && len >= 8) {
+        uint8_t high_temp = data[2];
+        uint8_t low_temp = data[3];
+
+        max_cell_temp_.store((uint16_t)high_temp, std::memory_order_relaxed);
+        min_cell_temp_.store((uint16_t)low_temp, std::memory_order_relaxed);
+
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x6B4] Temps: High=%u°C, Low=%u°C\n",
+               (unsigned)high_temp, (unsigned)low_temp);
+        fflush(stdout);
+#endif
+    }
+
+    // 0x35A: Pack Data 3 (Additional pack data)
+    else if (baseId == 0x35A && len >= 6) {
+#if CAN_DEBUG || defined(PLATFORM_LINUX)
+        printf("[0x35A] Pack Data 3 (raw bytes)\n");
+        fflush(stdout);
+#endif
+    }
+#endif // EMBOO_BATTERY
 }
 
 bool CANReceiver::init() {

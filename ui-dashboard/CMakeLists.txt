@@ -17,6 +17,18 @@ elseif(UNIX)
 endif()
 message(STATUS "Building for platform: ${PLATFORM}")
 
+# Battery type configuration
+set(BATTERY_TYPE "NISSAN_LEAF" CACHE STRING "Battery type: NISSAN_LEAF or EMBOO")
+set_property(CACHE BATTERY_TYPE PROPERTY STRINGS "NISSAN_LEAF" "EMBOO")
+
+if(BATTERY_TYPE STREQUAL "EMBOO")
+    add_definitions(-DEMBOO_BATTERY)
+    message(STATUS "Battery type: EMBOO (Orion BMS, 250 kbps)")
+else()
+    add_definitions(-DNISSAN_LEAF_BATTERY)
+    message(STATUS "Battery type: Nissan Leaf (500 kbps)")
+endif()
+
 # -------- LVGL config --------
 set(LV_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" CACHE STRING "" FORCE)
 

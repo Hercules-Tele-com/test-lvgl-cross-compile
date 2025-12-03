@@ -4,9 +4,22 @@
 #include <stdint.h>
 
 // ============================================================================
+// BATTERY TYPE CONFIGURATION
+// ============================================================================
+// Define one of these to select battery type:
+// - NISSAN_LEAF_BATTERY: Original Nissan Leaf battery (500 kbps, IDs 0x1DB, 0x1DC, etc.)
+// - EMBOO_BATTERY: EMBOO/Orion BMS battery (250 kbps, IDs 0x6B0-0x6B4, 0x351, 0x355, etc.)
+//
+// Default to Nissan Leaf if nothing is defined
+#if !defined(NISSAN_LEAF_BATTERY) && !defined(EMBOO_BATTERY)
+  #define NISSAN_LEAF_BATTERY
+#endif
+
+// ============================================================================
 // CAN ID DEFINITIONS
 // ============================================================================
 
+#ifdef NISSAN_LEAF_BATTERY
 // Existing Nissan Leaf CAN IDs (500 kbps)
 #define CAN_ID_INVERTER_TELEMETRY   0x1F2  // Inverter voltage, current, temps
 #define CAN_ID_BATTERY_SOC          0x1DB  // Battery state of charge
@@ -14,8 +27,24 @@
 #define CAN_ID_VEHICLE_SPEED        0x1D4  // Vehicle speed
 #define CAN_ID_MOTOR_RPM            0x1DA  // Motor RPM
 #define CAN_ID_CHARGER_STATUS       0x390  // Charger status and current
+#define CAN_BITRATE                 500000 // 500 kbps
+#endif
 
-// Custom ESP32 module CAN IDs (0x700+ range)
+#ifdef EMBOO_BATTERY
+// EMBOO/Orion BMS CAN IDs (250 kbps)
+#define CAN_ID_PACK_STATUS          0x6B0  // Pack voltage, current, SOC
+#define CAN_ID_PACK_STATS           0x6B1  // Min/max cell voltages and temps
+#define CAN_ID_STATUS_FLAGS         0x6B2  // Status and error flags
+#define CAN_ID_CELL_VOLTAGES        0x6B3  // Individual cell voltages (pairs)
+#define CAN_ID_TEMPERATURES         0x6B4  // Temperature data
+#define CAN_ID_PACK_SUMMARY         0x351  // Pack summary
+#define CAN_ID_PACK_DATA1           0x355  // Additional pack data
+#define CAN_ID_PACK_DATA2           0x356  // Additional pack data
+#define CAN_ID_PACK_DATA3           0x35A  // Additional pack data
+#define CAN_BITRATE                 250000 // 250 kbps
+#endif
+
+// Custom ESP32 module CAN IDs (0x700+ range) - common to both battery types
 #define CAN_ID_GPS_POSITION         0x710  // GPS latitude, longitude
 #define CAN_ID_GPS_VELOCITY         0x711  // GPS speed, heading
 #define CAN_ID_GPS_TIME             0x712  // GPS date/time
@@ -115,6 +144,74 @@ typedef struct {
 } BodyVoltageState;
 
 // ============================================================================
+// EMBOO BATTERY STATE STRUCTURES (Orion BMS / ENNOID-style)
+// ============================================================================
+
+#ifdef EMBOO_BATTERY
+
+// Pack status (0x6B0)
+typedef struct {
+    float pack_voltage;     // Pack voltage (V)
+    float pack_current;     // Pack current (A, signed: + = charging, - = discharging)
+    float pack_soc;         // State of charge (%)
+    float pack_amphours;    // Amp hours (Ah)
+} EmbooPackStatus;
+
+// Pack statistics (0x6B1)
+typedef struct {
+    uint16_t relay_state;   // Relay state flags
+    float high_temp;        // High temperature (°C)
+    float input_voltage;    // Input supply voltage (V)
+    float summed_voltage;   // Pack summed voltage (V)
+} EmbooPackStats;
+
+// Status flags (0x6B2)
+typedef struct {
+    uint8_t status_flags;   // Status flags
+    uint8_t error_flags;    // Error flags
+} EmbooStatusFlags;
+
+// Individual cell voltages (0x6B3)
+typedef struct {
+    uint8_t cell_id;        // Cell ID (0-99)
+    float cell_voltage;     // Cell voltage (V)
+    float cell_resistance;  // Cell resistance (mOhm)
+    bool cell_balancing;    // Cell balancing active
+    float cell_open_voltage; // Cell open circuit voltage (V)
+} EmbooCellVoltage;
+
+// Temperature data (0x6B4)
+typedef struct {
+    float high_temp;        // High temperature (°C)
+    float low_temp;         // Low temperature (°C)
+    uint8_t rolling_counter; // Rolling counter
+} EmbooTemperatures;
+
+// Pack summary (0x351)
+typedef struct {
+    float max_pack_voltage; // Maximum pack voltage (V)
+    float min_pack_voltage; // Minimum pack voltage (V)
+    float pack_ccl;         // Pack charge current limit (A)
+    float pack_dcl;         // Pack discharge current limit (A)
+} EmbooPackSummary;
+
+// Pack data 1 (0x355)
+typedef struct {
+    uint16_t pack_soc_int;  // Pack SOC integer (%)
+    uint16_t pack_health;   // Pack health (%)
+    float pack_soc_decimal; // Pack SOC decimal (%)
+} EmbooPackData1;
+
+// Pack data 2 (0x356)
+typedef struct {
+    float pack_summed_voltage; // Pack summed voltage (V)
+    float avg_current;      // Average current (A)
+    float high_temp;        // High temperature (°C)
+} EmbooPackData2;
+
+#endif // EMBOO_BATTERY
+
+// ============================================================================
 // PACK/UNPACK FUNCTIONS
 // ============================================================================
 
@@ -161,5 +258,45 @@ void pack_body_temp(const void* state, uint8_t* data, uint8_t* len);
 // Body voltage monitoring
 void unpack_body_voltage(const uint8_t* data, uint8_t len, void* state);
 void pack_body_voltage(const void* state, uint8_t* data, uint8_t* len);
+
+// ============================================================================
+// EMBOO BATTERY PACK/UNPACK FUNCTIONS
+// ============================================================================
+
+#ifdef EMBOO_BATTERY
+
+// Pack status (0x6B0)
+void unpack_emboo_pack_status(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_pack_status(const void* state, uint8_t* data, uint8_t* len);
+
+// Pack statistics (0x6B1)
+void unpack_emboo_pack_stats(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_pack_stats(const void* state, uint8_t* data, uint8_t* len);
+
+// Status flags (0x6B2)
+void unpack_emboo_status_flags(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_status_flags(const void* state, uint8_t* data, uint8_t* len);
+
+// Cell voltages (0x6B3)
+void unpack_emboo_cell_voltage(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_cell_voltage(const void* state, uint8_t* data, uint8_t* len);
+
+// Temperatures (0x6B4)
+void unpack_emboo_temperatures(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_temperatures(const void* state, uint8_t* data, uint8_t* len);
+
+// Pack summary (0x351)
+void unpack_emboo_pack_summary(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_pack_summary(const void* state, uint8_t* data, uint8_t* len);
+
+// Pack data 1 (0x355)
+void unpack_emboo_pack_data1(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_pack_data1(const void* state, uint8_t* data, uint8_t* len);
+
+// Pack data 2 (0x356)
+void unpack_emboo_pack_data2(const uint8_t* data, uint8_t len, void* state);
+void pack_emboo_pack_data2(const void* state, uint8_t* data, uint8_t* len);
+
+#endif // EMBOO_BATTERY
 
 #endif // LEAF_CAN_MESSAGES_H

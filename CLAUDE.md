@@ -5,9 +5,12 @@ This file provides guidance to Claude Code when working with the Nissan Leaf CAN
 ## Project Overview
 
 This is a comprehensive monorepo for a Nissan Leaf CAN network system featuring:
-- Multiple ESP32 modules with CAN bus connectivity (TJA1050 transceivers at 500 kbps)
+- Multiple ESP32 modules with CAN bus connectivity (TJA1050 transceivers)
 - Shared LeafCANBus library for CAN communication
 - Raspberry Pi LVGL dashboard with cross-platform development support
+- Support for multiple battery types:
+  - **Nissan Leaf Battery** (500 kbps, default)
+  - **EMBOO Battery** (Orion BMS, 250 kbps)
 - Integration with 2012 Nissan Leaf inverter, charger, and EM57 motor
 
 ## Project Structure
@@ -40,6 +43,41 @@ leaf-can-network/
         │   └── linux/          # SocketCAN + framebuffer
         └── shared/             # CAN receiver logic
 ```
+
+## Battery Configuration
+
+The system supports multiple battery types with compile-time configuration:
+
+### Supported Battery Types
+
+1. **Nissan Leaf Battery** (default)
+   - CAN bus speed: 500 kbps
+   - Configuration: `-DNISSAN_LEAF_BATTERY`
+
+2. **EMBOO Battery** (Orion BMS / ENNOID-style)
+   - CAN bus speed: 250 kbps
+   - Configuration: `-DEMBOO_BATTERY`
+
+### Configuring Battery Type
+
+**For UI Dashboard (CMake):**
+```bash
+cd ui-dashboard
+mkdir build && cd build
+cmake .. -DBATTERY_TYPE=EMBOO  # or NISSAN_LEAF (default)
+make
+```
+
+**For ESP32 Modules (PlatformIO):**
+Edit `platformio.ini` and uncomment the desired battery type:
+```ini
+build_flags =
+    -DCORE_DEBUG_LEVEL=3
+    ; -DNISSAN_LEAF_BATTERY    ; Nissan Leaf (500 kbps, default)
+    -DEMBOO_BATTERY            ; EMBOO/Orion BMS (250 kbps)
+```
+
+**See [docs/BATTERY_CONFIGURATION.md](docs/BATTERY_CONFIGURATION.md) for detailed configuration instructions.**
 
 ## Build Commands
 

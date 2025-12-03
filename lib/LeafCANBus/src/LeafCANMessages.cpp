@@ -317,3 +317,260 @@ void pack_body_voltage(const void* state, uint8_t* data, uint8_t* len) {
     uint16_to_bytes((uint16_t)(s->current_12v / 0.01f), data, 4);
     *len = 6;
 }
+
+// ============================================================================
+// EMBOO BATTERY PACK/UNPACK FUNCTIONS (Orion BMS / ENNOID-style)
+// ============================================================================
+
+#ifdef EMBOO_BATTERY
+
+// Helper functions for big-endian conversion
+static uint16_t bytes_to_uint16_be(const uint8_t* data, uint8_t offset) {
+    return ((uint16_t)data[offset] << 8) | (uint16_t)data[offset + 1];
+}
+
+static int16_t bytes_to_int16_be(const uint8_t* data, uint8_t offset) {
+    return (int16_t)bytes_to_uint16_be(data, offset);
+}
+
+static void uint16_to_bytes_be(uint16_t value, uint8_t* data, uint8_t offset) {
+    data[offset] = (value >> 8) & 0xFF;
+    data[offset + 1] = value & 0xFF;
+}
+
+static void int16_to_bytes_be(int16_t value, uint8_t* data, uint8_t offset) {
+    uint16_to_bytes_be((uint16_t)value, data, offset);
+}
+
+// ============================================================================
+// PACK STATUS (0x6B0)
+// ============================================================================
+
+void unpack_emboo_pack_status(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooPackStatus* s = (EmbooPackStatus*)state;
+
+    // Current (big-endian, signed, 0.1A scale)
+    s->pack_current = bytes_to_int16_be(data, 0) * 0.1f;
+
+    // Voltage (big-endian, 0.1V scale)
+    s->pack_voltage = bytes_to_uint16_be(data, 2) * 0.1f;
+
+    // Amp hours (big-endian, 0.1Ah scale)
+    s->pack_amphours = bytes_to_uint16_be(data, 4) * 0.1f;
+
+    // SOC (0.5% scale)
+    s->pack_soc = data[6] * 0.5f;
+}
+
+void pack_emboo_pack_status(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooPackStatus* s = (const EmbooPackStatus*)state;
+
+    memset(data, 0, 8);
+    int16_to_bytes_be((int16_t)(s->pack_current / 0.1f), data, 0);
+    uint16_to_bytes_be((uint16_t)(s->pack_voltage / 0.1f), data, 2);
+    uint16_to_bytes_be((uint16_t)(s->pack_amphours / 0.1f), data, 4);
+    data[6] = (uint8_t)(s->pack_soc / 0.5f);
+    *len = 8;
+}
+
+// ============================================================================
+// PACK STATISTICS (0x6B1)
+// ============================================================================
+
+void unpack_emboo_pack_stats(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooPackStats* s = (EmbooPackStats*)state;
+
+    // Relay state (big-endian)
+    s->relay_state = bytes_to_uint16_be(data, 0);
+
+    // High temperature (1.0°C scale)
+    s->high_temp = (float)data[2];
+
+    // Input supply voltage (big-endian, 0.1V scale)
+    s->input_voltage = bytes_to_uint16_be(data, 3) * 0.1f;
+
+    // Pack summed voltage (big-endian, 0.01V scale)
+    s->summed_voltage = bytes_to_uint16_be(data, 5) * 0.01f;
+}
+
+void pack_emboo_pack_stats(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooPackStats* s = (const EmbooPackStats*)state;
+
+    memset(data, 0, 8);
+    uint16_to_bytes_be(s->relay_state, data, 0);
+    data[2] = (uint8_t)s->high_temp;
+    uint16_to_bytes_be((uint16_t)(s->input_voltage / 0.1f), data, 3);
+    uint16_to_bytes_be((uint16_t)(s->summed_voltage / 0.01f), data, 5);
+    *len = 8;
+}
+
+// ============================================================================
+// STATUS FLAGS (0x6B2)
+// ============================================================================
+
+void unpack_emboo_status_flags(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooStatusFlags* s = (EmbooStatusFlags*)state;
+
+    s->status_flags = data[0];
+    s->error_flags = data[3];
+}
+
+void pack_emboo_status_flags(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooStatusFlags* s = (const EmbooStatusFlags*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->status_flags;
+    data[3] = s->error_flags;
+    *len = 8;
+}
+
+// ============================================================================
+// CELL VOLTAGES (0x6B3)
+// ============================================================================
+
+void unpack_emboo_cell_voltage(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooCellVoltage* s = (EmbooCellVoltage*)state;
+
+    // Cell ID
+    s->cell_id = data[0];
+
+    // Skip header frames (cell_id > 100 indicates status frames)
+    if (s->cell_id > 100) return;
+
+    // Cell voltage (big-endian, 0.0001V scale)
+    s->cell_voltage = bytes_to_uint16_be(data, 1) * 0.0001f;
+
+    // Cell resistance (15 bits, 0.01 mOhm) + balancing (1 bit)
+    uint16_t resistance_raw = bytes_to_uint16_be(data, 3);
+    s->cell_resistance = (resistance_raw & 0x7FFF) * 0.01f;
+    s->cell_balancing = (resistance_raw & 0x8000) != 0;
+
+    // Cell open voltage (big-endian, 0.0001V scale)
+    s->cell_open_voltage = bytes_to_uint16_be(data, 5) * 0.0001f;
+}
+
+void pack_emboo_cell_voltage(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooCellVoltage* s = (const EmbooCellVoltage*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->cell_id;
+    uint16_to_bytes_be((uint16_t)(s->cell_voltage / 0.0001f), data, 1);
+
+    uint16_t resistance_raw = (uint16_t)(s->cell_resistance / 0.01f) & 0x7FFF;
+    if (s->cell_balancing) resistance_raw |= 0x8000;
+    uint16_to_bytes_be(resistance_raw, data, 3);
+
+    uint16_to_bytes_be((uint16_t)(s->cell_open_voltage / 0.0001f), data, 5);
+    *len = 8;
+}
+
+// ============================================================================
+// TEMPERATURES (0x6B4)
+// ============================================================================
+
+void unpack_emboo_temperatures(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooTemperatures* s = (EmbooTemperatures*)state;
+
+    s->high_temp = (float)data[2];
+    s->low_temp = (float)data[3];
+    s->rolling_counter = data[4];
+}
+
+void pack_emboo_temperatures(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooTemperatures* s = (const EmbooTemperatures*)state;
+
+    memset(data, 0, 8);
+    data[2] = (uint8_t)s->high_temp;
+    data[3] = (uint8_t)s->low_temp;
+    data[4] = s->rolling_counter;
+    *len = 8;
+}
+
+// ============================================================================
+// PACK SUMMARY (0x351)
+// ============================================================================
+
+void unpack_emboo_pack_summary(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    EmbooPackSummary* s = (EmbooPackSummary*)state;
+
+    // Little-endian format
+    s->max_pack_voltage = bytes_to_uint16(data, 0) * 0.1f;
+    s->pack_ccl = bytes_to_uint16(data, 2) * 0.1f;
+    s->pack_dcl = bytes_to_uint16(data, 4) * 0.1f;
+    s->min_pack_voltage = bytes_to_uint16(data, 6) * 0.1f;
+}
+
+void pack_emboo_pack_summary(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooPackSummary* s = (const EmbooPackSummary*)state;
+
+    memset(data, 0, 8);
+    uint16_to_bytes((uint16_t)(s->max_pack_voltage / 0.1f), data, 0);
+    uint16_to_bytes((uint16_t)(s->pack_ccl / 0.1f), data, 2);
+    uint16_to_bytes((uint16_t)(s->pack_dcl / 0.1f), data, 4);
+    uint16_to_bytes((uint16_t)(s->min_pack_voltage / 0.1f), data, 6);
+    *len = 8;
+}
+
+// ============================================================================
+// PACK DATA 1 (0x355)
+// ============================================================================
+
+void unpack_emboo_pack_data1(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 6 || !state) return;
+    EmbooPackData1* s = (EmbooPackData1*)state;
+
+    // Little-endian format
+    s->pack_soc_int = bytes_to_uint16(data, 0);     // 1.0% scale
+    s->pack_health = bytes_to_uint16(data, 2);      // 1.0% scale
+    s->pack_soc_decimal = bytes_to_uint16(data, 4) * 0.1f; // 0.1% scale
+}
+
+void pack_emboo_pack_data1(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooPackData1* s = (const EmbooPackData1*)state;
+
+    memset(data, 0, 8);
+    uint16_to_bytes(s->pack_soc_int, data, 0);
+    uint16_to_bytes(s->pack_health, data, 2);
+    uint16_to_bytes((uint16_t)(s->pack_soc_decimal / 0.1f), data, 4);
+    *len = 6;
+}
+
+// ============================================================================
+// PACK DATA 2 (0x356)
+// ============================================================================
+
+void unpack_emboo_pack_data2(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 6 || !state) return;
+    EmbooPackData2* s = (EmbooPackData2*)state;
+
+    // Little-endian format
+    s->pack_summed_voltage = bytes_to_uint16(data, 0) * 0.01f;
+    // Note: Average current has unusual scale (1.5259E-6A), skipping for now
+    s->avg_current = 0.0f;
+    s->high_temp = bytes_to_uint16(data, 4) * 0.1f;
+}
+
+void pack_emboo_pack_data2(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const EmbooPackData2* s = (const EmbooPackData2*)state;
+
+    memset(data, 0, 8);
+    uint16_to_bytes((uint16_t)(s->pack_summed_voltage / 0.01f), data, 0);
+    uint16_to_bytes((uint16_t)(s->high_temp / 0.1f), data, 4);
+    *len = 6;
+}
+
+#endif // EMBOO_BATTERY
