@@ -217,7 +217,7 @@ class CANTelemetryLogger:
             .field("temp_max", int(temp_max)) \
             .field("temp_min", int(temp_min)) \
             .field("temp_avg", int(temp_avg)) \
-            .field("temp_delta", int(temp_max - temp_min)) \
+            .field("temp_delta", float(temp_max - temp_min)) \
             .field("sensor_count", int(sensor_count))
 
         return point
@@ -435,9 +435,9 @@ class CANTelemetryLogger:
                     .field("voltage_avg", float(avg_voltage)) \
                     .field("voltage_delta", float(max_voltage - min_voltage))
 
-                # Add individual cell voltages (up to 20 cells to avoid field explosion)
-                for cell_id, voltage in list(self.cell_voltages.items())[:20]:
-                    point.field(f"cell_{cell_id:02d}", float(voltage))
+                # Add individual cell voltages (up to 144 cells)
+                for cell_id, voltage in sorted(self.cell_voltages.items())[:144]:
+                    point.field(f"cell_{cell_id:03d}", float(voltage))
 
                 self.last_cell_write = now
                 return point
