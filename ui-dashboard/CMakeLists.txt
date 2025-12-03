@@ -18,8 +18,17 @@ endif()
 message(STATUS "Building for platform: ${PLATFORM}")
 
 # Battery type configuration
-set(BATTERY_TYPE "NISSAN_LEAF" CACHE STRING "Battery type: NISSAN_LEAF or EMBOO")
+# Default to EMBOO to match config/hardware_config.h
+# Override with: cmake .. -DBATTERY_TYPE=NISSAN_LEAF
+set(BATTERY_TYPE "EMBOO" CACHE STRING "Battery type: NISSAN_LEAF or EMBOO")
 set_property(CACHE BATTERY_TYPE PROPERTY STRINGS "NISSAN_LEAF" "EMBOO")
+
+# Motor type configuration
+set(MOTOR_TYPE "NISSAN" CACHE STRING "Motor type: NISSAN or ROAM")
+set_property(CACHE MOTOR_TYPE PROPERTY STRINGS "NISSAN" "ROAM")
+
+# Add config directory to include path so hardware_config.h is available
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../config)
 
 if(BATTERY_TYPE STREQUAL "EMBOO")
     add_definitions(-DEMBOO_BATTERY)
@@ -27,6 +36,14 @@ if(BATTERY_TYPE STREQUAL "EMBOO")
 else()
     add_definitions(-DNISSAN_LEAF_BATTERY)
     message(STATUS "Battery type: Nissan Leaf (500 kbps)")
+endif()
+
+if(MOTOR_TYPE STREQUAL "ROAM")
+    add_definitions(-DROAM_MOTOR)
+    message(STATUS "Motor type: ROAM/RM100 (CAN IDs 0x0A0-0x0AC)")
+else()
+    add_definitions(-DNISSAN_MOTOR)
+    message(STATUS "Motor type: Nissan EM57 (CAN IDs 0x1DA, 0x1F2)")
 endif()
 
 # -------- LVGL config --------
