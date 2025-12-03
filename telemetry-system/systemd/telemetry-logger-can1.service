@@ -9,11 +9,11 @@ Wants=network.target
 Type=simple
 User=emboo
 Group=emboo
-WorkingDirectory=/home/emboo/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger
-EnvironmentFile=/home/emboo/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger
+EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
 Environment=CAN_INTERFACE=can1
-ExecStart=/usr/bin/python3 /home/emboo/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
+ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
