@@ -50,10 +50,8 @@ START_TIME="1970-01-01T00:00:00Z"
 END_TIME="2100-01-01T00:00:00Z"
 
 # Delete measurements one by one (InfluxDB 2.x doesn't support bulk delete easily)
-MEASUREMENTS=("battery_soc" "battery_temp" "battery_cells" "battery_faults" \
-             "inverter" "motor_rpm" "motor_torque" "motor_voltage" \
-             "motor_current" "motor_temp" "vehicle_speed" "charger" \
-             "gps_position" "gps_velocity" "body_temp" "body_voltage")
+# New schema uses device families as measurements
+MEASUREMENTS=("Battery" "Motor" "Inverter" "GPS" "Vehicle")
 
 for measurement in "${MEASUREMENTS[@]}"; do
     echo "  Deleting $measurement..."

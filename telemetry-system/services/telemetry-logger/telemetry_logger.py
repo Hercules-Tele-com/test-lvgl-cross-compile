@@ -9,6 +9,7 @@ import sys
 import time
 import signal
 import logging
+import socket
 from datetime import datetime
 from typing import Dict, Any, Optional
 import can
@@ -119,6 +120,14 @@ class CANTelemetryLogger:
         self.active_faults = set()
         self.fault_counts = {}
 
+        # Get hostname for serial numbers
+        self.hostname = socket.gethostname()
+        logger.info(f"Vehicle hostname: {self.hostname}")
+
+    def _get_serial_number(self, device_family: str, device_type: str) -> str:
+        """Generate serial number based on hostname and device type"""
+        return f"{self.hostname}-{device_family}-{device_type}"
+
     def init(self) -> bool:
         """Initialize CAN buses and InfluxDB connection"""
         try:
@@ -171,8 +180,10 @@ class CANTelemetryLogger:
         temp_motor = int.from_bytes(data[5:6], 'big', signed=True)  # °C
         status_flags = data[6]
 
-        point = Point("inverter") \
+        point = Point("Inverter") \
+            .tag("serial_number", self._get_serial_number("Inverter", "LeafEM57")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "EM57") \
             .field("voltage", float(voltage)) \
             .field("current", float(current)) \
             .field("temp_inverter", float(temp_inverter)) \
@@ -183,7 +194,7 @@ class CANTelemetryLogger:
         return point
 
     def parse_battery_soc(self, data: bytes) -> Optional[Point]:
-        """Parse battery SOC CAN message"""
+        """Parse battery SOC CAN message (Nissan Leaf)"""
         if len(data) < 8:
             return None
 
@@ -192,18 +203,20 @@ class CANTelemetryLogger:
         pack_voltage = int.from_bytes(data[3:5], 'big') * 0.1  # V
         pack_current = int.from_bytes(data[5:7], 'big', signed=True) * 0.1  # A
 
-        point = Point("battery_soc") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "Leaf24kWh")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "Leaf_24kWh") \
             .field("soc_percent", int(soc_percent)) \
             .field("gids", int(gids)) \
-            .field("pack_voltage", float(pack_voltage)) \
-            .field("pack_current", float(pack_current)) \
-            .field("pack_power_kw", float(pack_voltage * pack_current / 1000.0))
+            .field("voltage", float(pack_voltage)) \
+            .field("current", float(pack_current)) \
+            .field("power_kw", float(pack_voltage * pack_current / 1000.0))
 
         return point
 
     def parse_battery_temp(self, data: bytes) -> Optional[Point]:
-        """Parse battery temperature CAN message"""
+        """Parse battery temperature CAN message (Nissan Leaf)"""
         if len(data) < 4:
             return None
 
@@ -212,13 +225,15 @@ class CANTelemetryLogger:
         temp_avg = int.from_bytes(data[2:3], 'big', signed=True)
         sensor_count = data[3]
 
-        point = Point("battery_temp") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "Leaf24kWh")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "Leaf_24kWh") \
             .field("temp_max", float(temp_max)) \
             .field("temp_min", float(temp_min)) \
             .field("temp_avg", float(temp_avg)) \
             .field("temp_delta", float(temp_max - temp_min)) \
-            .field("sensor_count", int(sensor_count))
+            .field("temp_sensor_count", int(sensor_count))
 
         return point
 
@@ -230,15 +245,17 @@ class CANTelemetryLogger:
         speed_kmh = int.from_bytes(data[0:2], 'big') * 0.01
         speed_mph = int.from_bytes(data[2:4], 'big') * 0.01
 
-        point = Point("vehicle_speed") \
+        point = Point("Vehicle") \
+            .tag("serial_number", self._get_serial_number("Vehicle", "LeafZE0")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "Leaf_ZE0") \
             .field("speed_kmh", float(speed_kmh)) \
             .field("speed_mph", float(speed_mph))
 
         return point
 
     def parse_motor_rpm(self, data: bytes) -> Optional[Point]:
-        """Parse motor RPM CAN message"""
+        """Parse motor RPM CAN message (Nissan Leaf EM57)"""
         if len(data) < 3:
             return None
 
@@ -251,8 +268,10 @@ class CANTelemetryLogger:
         elif direction == 2:
             direction_str = "reverse"
 
-        point = Point("motor_rpm") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "LeafEM57")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "EM57") \
             .tag("direction", direction_str) \
             .field("rpm", int(rpm))
 
@@ -268,14 +287,16 @@ class CANTelemetryLogger:
         charge_voltage = int.from_bytes(data[3:5], 'big') * 0.1
         charge_time = int.from_bytes(data[5:7], 'big')
 
-        point = Point("charger") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "Leaf24kWh")) \
             .tag("source", "leaf_ecu") \
+            .tag("device_type", "Leaf_24kWh") \
             .tag("charging", "yes" if charging else "no") \
             .field("charging_flag", int(charging)) \
-            .field("current", float(charge_current)) \
-            .field("voltage", float(charge_voltage)) \
-            .field("time_remaining_min", int(charge_time)) \
-            .field("power_kw", float(charge_voltage * charge_current / 1000.0))
+            .field("charge_current", float(charge_current)) \
+            .field("charge_voltage", float(charge_voltage)) \
+            .field("charge_time_remaining_min", int(charge_time)) \
+            .field("charge_power_kw", float(charge_voltage * charge_current / 1000.0))
 
         return point
 
@@ -292,8 +313,10 @@ class CANTelemetryLogger:
         longitude = lon_raw / 1e7
 
         # Additional data might be in subsequent messages
-        point = Point("gps_position") \
+        point = Point("GPS") \
+            .tag("serial_number", self._get_serial_number("GPS", "ESP32")) \
             .tag("source", "esp32_gps") \
+            .tag("device_type", "NEO_6M") \
             .field("latitude", float(latitude)) \
             .field("longitude", float(longitude))
 
@@ -308,8 +331,10 @@ class CANTelemetryLogger:
         heading = int.from_bytes(data[2:4], 'big') * 0.01
         pdop = int.from_bytes(data[4:6], 'big') * 0.01
 
-        point = Point("gps_velocity") \
+        point = Point("GPS") \
+            .tag("serial_number", self._get_serial_number("GPS", "ESP32")) \
             .tag("source", "esp32_gps") \
+            .tag("device_type", "NEO_6M") \
             .field("speed_kmh", float(speed_kmh)) \
             .field("heading", float(heading)) \
             .field("pdop", float(pdop))
@@ -326,12 +351,14 @@ class CANTelemetryLogger:
         temp3 = int.from_bytes(data[4:6], 'big', signed=True) / 10.0
         temp4 = int.from_bytes(data[6:8], 'big', signed=True) / 10.0
 
-        point = Point("body_temp") \
-            .tag("source", "esp32_temp") \
-            .field("temp1", float(temp1)) \
-            .field("temp2", float(temp2)) \
-            .field("temp3", float(temp3)) \
-            .field("temp4", float(temp4))
+        point = Point("Vehicle") \
+            .tag("serial_number", self._get_serial_number("Vehicle", "LeafZE0")) \
+            .tag("source", "esp32_body") \
+            .tag("device_type", "BodySensors") \
+            .field("body_temp1", float(temp1)) \
+            .field("body_temp2", float(temp2)) \
+            .field("body_temp3", float(temp3)) \
+            .field("body_temp4", float(temp4))
 
         return point
 
@@ -344,11 +371,13 @@ class CANTelemetryLogger:
         voltage_5v = int.from_bytes(data[2:4], 'big') * 0.01
         current_12v = int.from_bytes(data[4:6], 'big') * 0.01
 
-        point = Point("body_voltage") \
-            .tag("source", "esp32_voltage") \
-            .field("voltage_12v", float(voltage_12v)) \
-            .field("voltage_5v", float(voltage_5v)) \
-            .field("current_12v", float(current_12v))
+        point = Point("Vehicle") \
+            .tag("serial_number", self._get_serial_number("Vehicle", "LeafZE0")) \
+            .tag("source", "esp32_body") \
+            .tag("device_type", "BodySensors") \
+            .field("aux_voltage_12v", float(voltage_12v)) \
+            .field("aux_voltage_5v", float(voltage_5v)) \
+            .field("aux_current_12v", float(current_12v))
 
         return point
 
@@ -366,12 +395,14 @@ class CANTelemetryLogger:
         pack_voltage = int.from_bytes(data[2:4], 'big') * 0.1  # V
         pack_soc = data[6] * 0.5  # %
 
-        point = Point("battery_soc") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
             .tag("source", "emboo_bms") \
+            .tag("device_type", "Orion_BMS") \
             .field("soc_percent", float(pack_soc)) \
-            .field("pack_voltage", float(pack_voltage)) \
-            .field("pack_current", float(pack_current)) \
-            .field("pack_power_kw", float(pack_voltage * pack_current / 1000.0))
+            .field("voltage", float(pack_voltage)) \
+            .field("current", float(pack_current)) \
+            .field("power_kw", float(pack_voltage * pack_current / 1000.0))
 
         return point
 
@@ -384,8 +415,10 @@ class CANTelemetryLogger:
         high_temp = int.from_bytes([data[4]], 'big', signed=True)  # °C (signed byte)
         low_temp = int.from_bytes([data[5]], 'big', signed=True)   # °C (signed byte)
 
-        point = Point("battery_temp") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
             .tag("source", "emboo_bms") \
+            .tag("device_type", "Orion_BMS") \
             .field("temp_max", float(high_temp)) \
             .field("temp_min", float(low_temp)) \
             .field("temp_avg", float((high_temp + low_temp) / 2.0)) \
@@ -427,13 +460,15 @@ class CANTelemetryLogger:
                 max_voltage = max(voltages)
                 avg_voltage = sum(voltages) / len(voltages)
 
-                point = Point("battery_cells") \
+                point = Point("Battery") \
+                    .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
                     .tag("source", "emboo_bms") \
+                    .tag("device_type", "Orion_BMS") \
                     .field("cell_count", len(voltages)) \
-                    .field("voltage_min", float(min_voltage)) \
-                    .field("voltage_max", float(max_voltage)) \
-                    .field("voltage_avg", float(avg_voltage)) \
-                    .field("voltage_delta", float(max_voltage - min_voltage))
+                    .field("cell_voltage_min", float(min_voltage)) \
+                    .field("cell_voltage_max", float(max_voltage)) \
+                    .field("cell_voltage_avg", float(avg_voltage)) \
+                    .field("cell_voltage_delta", float(max_voltage - min_voltage))
 
                 # Add individual cell voltages (up to 144 cells)
                 for cell_id, voltage in sorted(self.cell_voltages.items())[:144]:
@@ -498,10 +533,12 @@ class CANTelemetryLogger:
         self.active_faults = current_faults
 
         # Create InfluxDB point
-        point = Point("battery_faults") \
+        point = Point("Battery") \
+            .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
             .tag("source", "emboo_bms") \
+            .tag("device_type", "Orion_BMS") \
             .field("fault_count", len(faults)) \
-            .field("status_raw", int(fault_bits))
+            .field("fault_status_raw", int(fault_bits))
 
         # Add individual fault flags
         for fault in faults:
@@ -509,7 +546,7 @@ class CANTelemetryLogger:
 
         # Add total fault occurrences
         for fault, count in self.fault_counts.items():
-            point.field(f"total_{fault}", int(count))
+            point.field(f"fault_total_{fault}", int(count))
 
         return point
 
@@ -526,8 +563,10 @@ class CANTelemetryLogger:
         torque_request = int.from_bytes(data[0:2], 'little', signed=True)  # Nm
         torque_actual = int.from_bytes(data[2:4], 'little', signed=True)  # Nm
 
-        point = Point("motor_torque") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "ROAM")) \
             .tag("source", "roam_motor") \
+            .tag("device_type", "RM100") \
             .field("torque_request", int(torque_request)) \
             .field("torque_actual", int(torque_actual))
 
@@ -543,10 +582,12 @@ class CANTelemetryLogger:
         motor_rpm = int.from_bytes([data[2], data[3]], 'big', signed=True)
         electrical_freq = (data[4] << 8) | data[5]  # Hz
 
-        point = Point("motor_rpm") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "ROAM")) \
             .tag("source", "roam_motor") \
+            .tag("device_type", "RM100") \
             .field("rpm", int(motor_rpm)) \
-            .field("motor_angle", int(motor_angle)) \
+            .field("position_angle", int(motor_angle)) \
             .field("electrical_freq", int(electrical_freq))
 
         return point
@@ -560,10 +601,12 @@ class CANTelemetryLogger:
         dc_bus_voltage = int.from_bytes([data[0], data[1]], 'little')  # 0.1V units
         output_voltage = int.from_bytes([data[2], data[3]], 'little')  # 0.1V units
 
-        point = Point("motor_voltage") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "ROAM")) \
             .tag("source", "roam_motor") \
-            .field("dc_bus_voltage", int(dc_bus_voltage)) \
-            .field("output_voltage", int(output_voltage))
+            .tag("device_type", "RM100") \
+            .field("voltage_dc_bus", int(dc_bus_voltage)) \
+            .field("voltage_output", int(output_voltage))
 
         return point
 
@@ -578,40 +621,46 @@ class CANTelemetryLogger:
         phase_c = int.from_bytes([data[4], data[5]], 'little', signed=True)
         dc_bus_current = int.from_bytes([data[6], data[7]], 'little', signed=True)
 
-        point = Point("motor_current") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "ROAM")) \
             .tag("source", "roam_motor") \
-            .field("phase_a_current", int(phase_a)) \
-            .field("phase_b_current", int(phase_b)) \
-            .field("phase_c_current", int(phase_c)) \
-            .field("dc_bus_current", int(dc_bus_current))
+            .tag("device_type", "RM100") \
+            .field("current_phase_a", int(phase_a)) \
+            .field("current_phase_b", int(phase_b)) \
+            .field("current_phase_c", int(phase_c)) \
+            .field("current_dc_bus", int(dc_bus_current))
 
         return point
 
     def parse_roam_temp_2(self, data: bytes) -> Optional[Point]:
-        """Parse ROAM motor temperatures #2 (0x0A1)"""
+        """Parse ROAM motor temperatures #2 (0x0A1) - Control board"""
         if len(data) < 8:
             return None
 
         # Little-endian pairs, °C * 10
         control_board_temp = int.from_bytes([data[0], data[1]], 'little', signed=True) / 10.0
 
-        point = Point("inverter") \
+        point = Point("Inverter") \
+            .tag("serial_number", self._get_serial_number("Inverter", "ROAM")) \
             .tag("source", "roam_motor") \
+            .tag("device_type", "RM100") \
             .field("temp_inverter", float(control_board_temp))
 
         return point
 
     def parse_roam_temp_3(self, data: bytes) -> Optional[Point]:
-        """Parse ROAM motor temperatures #3 (0x0A2)"""
+        """Parse ROAM motor temperatures #3 (0x0A2) - Stator"""
         if len(data) < 8:
             return None
 
         # Little-endian pairs, °C * 10
         stator_temp = int.from_bytes([data[4], data[5]], 'little', signed=True) / 10.0
 
-        point = Point("motor_temp") \
+        point = Point("Motor") \
+            .tag("serial_number", self._get_serial_number("Motor", "ROAM")) \
             .tag("source", "roam_motor") \
-            .field("temp_motor", float(stator_temp))
+            .tag("device_type", "RM100") \
+            .field("temp_stator", float(stator_temp))
 
         return point
 
