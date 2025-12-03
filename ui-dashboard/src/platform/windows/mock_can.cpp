@@ -131,18 +131,34 @@ static bool parse_can_log_line(const std::string& line, CANLogEntry& entry) {
 static bool load_demo_log_file(MockCANDataInternal* internal) {
     // Try multiple possible locations for the log file
     std::vector<std::string> possible_paths = {
-        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\can_log_demo.txt",
-        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\test-lvgl-cross-compile\\ui-dashboard\\src\\platform\\windows\\can_log_demo.txt",
+        // Direct path in source tree
+        "src/platform/windows/can_log_demo.txt",
+        "../src/platform/windows/can_log_demo.txt",
+        "../../src/platform/windows/can_log_demo.txt",
+        "../../../src/platform/windows/can_log_demo.txt",
+
+        // Relative to build directory (Debug/Release)
+        "../../src/platform/windows/can_log_demo.txt",
+        "../../../src/platform/windows/can_log_demo.txt",
+
+        // Current directory and parent directories
         "can_log_demo.txt",
         "../can_log_demo.txt",
         "../../can_log_demo.txt",
         "../../../can_log_demo.txt",
         "../../../../can_log_demo.txt",
-        "../../../../../can_log_demo.txt"
+        "../../../../../can_log_demo.txt",
+
+        // Absolute paths (user-specific)
+        "C:\\Users\\Mike\\Repositories\\test-lvgl-cross-compile\\ui-dashboard\\src\\platform\\windows\\can_log_demo.txt",
+        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\can_log_demo.txt",
+        "C:\\Users\\Mike\\Repositories\\leaf_cruiser\\test-lvgl-cross-compile\\ui-dashboard\\src\\platform\\windows\\can_log_demo.txt",
     };
 
     std::ifstream log_file;
     std::string used_path;
+
+    std::cout << "[DemoPlayback] Searching for can_log_demo.txt..." << std::endl;
 
     for (const auto& path : possible_paths) {
         log_file.open(path);
@@ -153,15 +169,23 @@ static bool load_demo_log_file(MockCANDataInternal* internal) {
     }
 
     if (!log_file.is_open()) {
-        std::cerr << "[DemoPlayback] ERROR: Could not open can_log_demo.txt from any location" << std::endl;
-        std::cerr << "[DemoPlayback] Tried paths:" << std::endl;
+        std::cerr << "\n[DemoPlayback] ============================================" << std::endl;
+        std::cerr << "[DemoPlayback] ERROR: Could not find can_log_demo.txt" << std::endl;
+        std::cerr << "[DemoPlayback] ============================================" << std::endl;
+        std::cerr << "[DemoPlayback] Searched in the following locations:" << std::endl;
         for (const auto& path : possible_paths) {
-            std::cerr << "  - " << path << std::endl;
+            std::cerr << "  [✗] " << path << std::endl;
         }
+        std::cerr << "\n[DemoPlayback] SOLUTION:" << std::endl;
+        std::cerr << "  1. Copy can_log_demo.txt from:" << std::endl;
+        std::cerr << "     ui-dashboard/src/platform/windows/can_log_demo.txt" << std::endl;
+        std::cerr << "  2. To the same directory as the executable" << std::endl;
+        std::cerr << "  3. Or run the executable from the build directory" << std::endl;
+        std::cerr << "[DemoPlayback] ============================================\n" << std::endl;
         return false;
     }
 
-    std::cout << "[DemoPlayback] Loading CAN log from: " << used_path << std::endl;
+    std::cout << "[DemoPlayback] ✓ Found CAN log file: " << used_path << std::endl;
 
     // Read all log entries
     std::string line;
@@ -181,16 +205,20 @@ static bool load_demo_log_file(MockCANDataInternal* internal) {
 
     if (internal->log_entries.empty()) {
         std::cerr << "[DemoPlayback] ERROR: No valid CAN messages found in log file" << std::endl;
+        std::cerr << "[DemoPlayback] File format should be: Timestamp CAN_ID DLC Data_Bytes" << std::endl;
+        std::cerr << "[DemoPlayback] Example: 0.000000 351 8 0B B8 00 00 00 00 00 00" << std::endl;
         return false;
     }
 
     // Set the playback start timestamp to the first entry's timestamp
     internal->playback_start_timestamp = internal->log_entries[0].timestamp;
 
-    std::cout << "[DemoPlayback] Loaded " << parsed_count << " CAN messages from "
+    std::cout << "[DemoPlayback] ✓ Loaded " << parsed_count << " CAN messages from "
               << line_num << " lines" << std::endl;
     std::cout << "[DemoPlayback] Time range: " << internal->log_entries[0].timestamp
-              << "s to " << internal->log_entries.back().timestamp << "s" << std::endl;
+              << "s to " << internal->log_entries.back().timestamp << "s ("
+              << (internal->log_entries.back().timestamp - internal->log_entries[0].timestamp)
+              << "s duration)" << std::endl;
     std::cout << "[DemoPlayback] Playback will loop continuously" << std::endl;
 
     return true;

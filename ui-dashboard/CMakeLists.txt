@@ -122,6 +122,20 @@ target_link_libraries(${PROJECT_NAME} PRIVATE lvgl::lvgl leafcanmsgs)
 if(PLATFORM STREQUAL "windows")
     find_package(SDL2 CONFIG REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2 SDL2::SDL2main)
+
+    # Copy CAN log demo file to build directory for Windows simulator
+    set(CAN_LOG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows/can_log_demo.txt")
+    if(EXISTS ${CAN_LOG_FILE})
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CAN_LOG_FILE}
+                $<TARGET_FILE_DIR:${PROJECT_NAME}>/can_log_demo.txt
+            COMMENT "Copying can_log_demo.txt to build directory"
+        )
+        message(STATUS "CAN log demo file will be copied to build directory: ${CAN_LOG_FILE}")
+    else()
+        message(WARNING "CAN log demo file not found: ${CAN_LOG_FILE}")
+    endif()
 elseif(PLATFORM STREQUAL "linux")
     find_package(Threads REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
