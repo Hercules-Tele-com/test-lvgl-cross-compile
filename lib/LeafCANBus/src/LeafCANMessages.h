@@ -4,6 +4,15 @@
 #include <stdint.h>
 
 // ============================================================================
+// HARDWARE CONFIGURATION
+// ============================================================================
+// Include centralized hardware configuration file if available
+// If not using centralized config, individual defines can be set in build system
+#if __has_include("../../../config/hardware_config.h")
+  #include "../../../config/hardware_config.h"
+#endif
+
+// ============================================================================
 // BATTERY TYPE CONFIGURATION
 // ============================================================================
 // Define one of these to select battery type:
@@ -13,6 +22,18 @@
 // Default to Nissan Leaf if nothing is defined
 #if !defined(NISSAN_LEAF_BATTERY) && !defined(EMBOO_BATTERY)
   #define NISSAN_LEAF_BATTERY
+#endif
+
+// ============================================================================
+// MOTOR/INVERTER TYPE CONFIGURATION
+// ============================================================================
+// Define one of these to select motor controller type:
+// - NISSAN_MOTOR: Nissan Leaf EM57 motor with inverter (CAN IDs 0x1DA, 0x1F2, etc.)
+// - ROAM_MOTOR: ROAM/RM100 motor controller (CAN IDs 0x0A0-0x0A7, 0x0AC)
+//
+// Default to Nissan motor if nothing is defined
+#if !defined(NISSAN_MOTOR) && !defined(ROAM_MOTOR)
+  #define NISSAN_MOTOR
 #endif
 
 // ============================================================================
@@ -44,7 +65,25 @@
 #define CAN_BITRATE                 250000 // 250 kbps
 #endif
 
-// Custom ESP32 module CAN IDs (0x700+ range) - common to both battery types
+// ============================================================================
+// MOTOR/INVERTER CAN IDs
+// ============================================================================
+
+#ifdef ROAM_MOTOR
+// ROAM/RM100 Motor Controller CAN IDs
+#define CAN_ID_MOTOR_TEMP_1         0x0A0  // IGBT temperatures (Phase A, B, C, Gate Driver)
+#define CAN_ID_MOTOR_TEMP_2         0x0A1  // Control board temp, RTD temps
+#define CAN_ID_MOTOR_TEMP_3         0x0A2  // RTD temps, stator temp, torque shudder
+#define CAN_ID_MOTOR_ANALOG         0x0A3  // Analog input voltages
+#define CAN_ID_MOTOR_DIGITAL        0x0A4  // Digital input status
+#define CAN_ID_MOTOR_POSITION       0x0A5  // Motor angle, RPM, frequency
+#define CAN_ID_MOTOR_CURRENT        0x0A6  // Phase currents, DC bus current
+#define CAN_ID_MOTOR_VOLTAGE        0x0A7  // DC bus voltage, output voltage, phase voltages
+#define CAN_ID_MOTOR_TORQUE         0x0AC  // Torque request and actual torque
+// Note: For Nissan motor, existing IDs 0x1DA (RPM) and 0x1F2 (inverter) are used
+#endif
+
+// Custom ESP32 module CAN IDs (0x700+ range) - common to both battery and motor types
 #define CAN_ID_GPS_POSITION         0x710  // GPS latitude, longitude
 #define CAN_ID_GPS_VELOCITY         0x711  // GPS speed, heading
 #define CAN_ID_GPS_TIME             0x712  // GPS date/time
@@ -142,6 +181,102 @@ typedef struct {
     float voltage_5v;       // 5V system voltage
     float current_12v;      // 12V system current (A)
 } BodyVoltageState;
+
+// ============================================================================
+// ROAM MOTOR STATE STRUCTURES (RM100 Motor Controller)
+// ============================================================================
+
+#ifdef ROAM_MOTOR
+
+// Motor torque state (0x0AC)
+typedef struct {
+    int16_t torque_request;  // Requested torque (Nm)
+    int16_t torque_actual;   // Actual torque (Nm)
+    int16_t torque_max_pos;  // Maximum positive torque (Nm)
+    int16_t torque_max_neg;  // Maximum negative torque (Nm)
+} RoamMotorTorque;
+
+// Motor position and speed (0x0A5)
+typedef struct {
+    uint16_t motor_angle;         // Electrical angle (degrees)
+    int16_t motor_rpm;            // Motor RPM
+    uint16_t electrical_freq;     // Electrical frequency (Hz)
+    int16_t delta_resolver;       // Delta resolver (degrees, ±180°)
+} RoamMotorPosition;
+
+// Motor voltage information (0x0A7)
+typedef struct {
+    uint16_t dc_bus_voltage;      // DC bus voltage (V)
+    uint16_t output_voltage;      // Output voltage (V, peak line-neutral)
+    uint16_t vab_vd_voltage;      // VAB (Phase A-B) or Vd voltage (V)
+    uint16_t vbc_vq_voltage;      // VBC (Phase B-C) or Vq voltage (V)
+} RoamMotorVoltage;
+
+// Motor current information (0x0A6)
+typedef struct {
+    int16_t phase_a_current;      // Phase A current (A)
+    int16_t phase_b_current;      // Phase B current (A)
+    int16_t phase_c_current;      // Phase C current (A)
+    int16_t dc_bus_current;       // DC bus current (A)
+} RoamMotorCurrent;
+
+// Motor temperatures #1 (0x0A0)
+typedef struct {
+    int16_t igbt_a_temp;          // IGBT Phase A temperature (°C * 10)
+    int16_t igbt_b_temp;          // IGBT Phase B temperature (°C * 10)
+    int16_t igbt_c_temp;          // IGBT Phase C temperature (°C * 10)
+    int16_t gate_driver_temp;     // Gate driver board temperature (°C * 10)
+} RoamMotorTemp1;
+
+// Motor temperatures #2 (0x0A1)
+typedef struct {
+    int16_t control_board_temp;   // Control board temperature (°C * 10)
+    int16_t rtd1_temp;            // RTD #1 temperature (°C * 10)
+    int16_t rtd2_temp;            // RTD #2 temperature (°C * 10)
+    int16_t rtd3_temp;            // RTD #3 temperature (°C * 10)
+} RoamMotorTemp2;
+
+// Motor temperatures #3 (0x0A2)
+typedef struct {
+    int16_t rtd4_temp;            // RTD #4 temperature (°C * 10)
+    int16_t rtd5_temp;            // RTD #5 temperature (°C * 10)
+    int16_t stator_temp;          // Motor stator temperature (°C * 10)
+    int16_t torque_shudder;       // Torque shudder compensation value
+} RoamMotorTemp3;
+
+// Comprehensive motor state (aggregated)
+typedef struct {
+    // Torque
+    int16_t torque_request;       // Requested torque (Nm)
+    int16_t torque_actual;        // Actual torque (Nm)
+
+    // Speed and position
+    int16_t motor_rpm;            // Motor RPM
+    uint16_t motor_angle;         // Electrical angle (degrees)
+
+    // Electrical
+    uint16_t dc_voltage;          // DC bus voltage (V)
+    int16_t dc_current;           // DC bus current (A)
+    int16_t electrical_power;     // Electrical power (W)
+    int16_t mechanical_power;     // Mechanical power (W)
+
+    // Temperatures
+    int8_t inverter_temp;         // Inverter/control board temp (°C)
+    int8_t stator_temp;           // Motor stator temp (°C)
+    int8_t coolant_temp;          // Coolant temp (°C)
+
+    // Status
+    uint8_t mode_status;          // Operating mode status
+    uint8_t mode_request;         // Operating mode request
+    bool contactor_state;         // Contactor state
+    uint8_t dtc_flags;            // Diagnostic trouble codes
+    uint8_t derating;             // Power derating (%)
+
+    // Odometer
+    uint32_t odometer;            // Odometer (meters)
+} RoamMotorState;
+
+#endif // ROAM_MOTOR
 
 // ============================================================================
 // EMBOO BATTERY STATE STRUCTURES (Orion BMS / ENNOID-style)
@@ -298,5 +433,47 @@ void unpack_emboo_pack_data2(const uint8_t* data, uint8_t len, void* state);
 void pack_emboo_pack_data2(const void* state, uint8_t* data, uint8_t* len);
 
 #endif // EMBOO_BATTERY
+
+// ============================================================================
+// ROAM MOTOR PACK/UNPACK FUNCTIONS
+// ============================================================================
+
+#ifdef ROAM_MOTOR
+
+// Motor torque (0x0AC)
+void unpack_roam_motor_torque(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_torque(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor position (0x0A5)
+void unpack_roam_motor_position(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_position(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor voltage (0x0A7)
+void unpack_roam_motor_voltage(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_voltage(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor current (0x0A6)
+void unpack_roam_motor_current(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_current(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor temperatures #1 (0x0A0)
+void unpack_roam_motor_temp1(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_temp1(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor temperatures #2 (0x0A1)
+void unpack_roam_motor_temp2(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_temp2(const void* state, uint8_t* data, uint8_t* len);
+
+// Motor temperatures #3 (0x0A2)
+void unpack_roam_motor_temp3(const uint8_t* data, uint8_t len, void* state);
+void pack_roam_motor_temp3(const void* state, uint8_t* data, uint8_t* len);
+
+// Comprehensive motor state update
+void update_roam_motor_state(RoamMotorState* state, const RoamMotorTorque* torque,
+                             const RoamMotorPosition* position, const RoamMotorVoltage* voltage,
+                             const RoamMotorCurrent* current, const RoamMotorTemp2* temp2,
+                             const RoamMotorTemp3* temp3);
+
+#endif // ROAM_MOTOR
 
 #endif // LEAF_CAN_MESSAGES_H

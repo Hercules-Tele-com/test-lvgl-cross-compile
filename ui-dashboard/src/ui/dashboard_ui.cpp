@@ -150,7 +150,7 @@ void DashboardUI::updateTime(uint8_t h, uint8_t m, uint8_t s) {
 void DashboardUI::updateSpeedDisplay(float speed_kmh) {
     if (!speed_label) return;
     int speed = (int)(speed_kmh + 0.5f);  // Round to nearest integer
-    lv_label_set_text_fmt(speed_label, "%d", speed);
+    lv_label_set_text_fmt(speed_label, "%d kph", speed);
 }
 
 void DashboardUI::updateBatterySOC(uint8_t soc_percent) {
@@ -198,10 +198,32 @@ void DashboardUI::updatePowerGauge(float power_kw) {
     lv_arc_set_value(power_gauge, power);
 }
 
+// Helper function to get color based on temperature percentage
+// 0-20%: Blue, 20-70%: Green, 70-85%: Orange, >85%: Red
+static lv_color_t getTemperatureColor(float percentage) {
+    if (percentage < 20.0f) {
+        return lv_palette_main(LV_PALETTE_BLUE);
+    } else if (percentage < 70.0f) {
+        return lv_palette_main(LV_PALETTE_GREEN);
+    } else if (percentage < 85.0f) {
+        return lv_palette_main(LV_PALETTE_ORANGE);
+    } else {
+        return lv_palette_main(LV_PALETTE_RED);
+    }
+}
+
 void DashboardUI::updateBatteryTemp(int8_t temp_c) {
     if (battery_temp_bar) {
         int v = std::max(20, std::min((int)temp_c, 50));
         lv_bar_set_value(battery_temp_bar, v, LV_ANIM_ON);
+
+        // Calculate percentage (range: 20-50°C)
+        float percentage = ((float)temp_c - 20.0f) / (50.0f - 20.0f) * 100.0f;
+        percentage = std::max(0.0f, std::min(percentage, 100.0f));
+
+        // Set color based on percentage
+        lv_color_t color = getTemperatureColor(percentage);
+        lv_obj_set_style_bg_color(battery_temp_bar, color, LV_PART_INDICATOR);
     }
     if (battery_temp_value) {
         lv_label_set_text_fmt(battery_temp_value, "%dC", (int)temp_c);
@@ -212,6 +234,14 @@ void DashboardUI::updateMotorTemp(uint8_t temp_c) {
     if (motor_temp_bar) {
         int v = std::max(20, std::min((int)temp_c, 110));
         lv_bar_set_value(motor_temp_bar, v, LV_ANIM_ON);
+
+        // Calculate percentage (range: 20-110°C)
+        float percentage = ((float)temp_c - 20.0f) / (110.0f - 20.0f) * 100.0f;
+        percentage = std::max(0.0f, std::min(percentage, 100.0f));
+
+        // Set color based on percentage
+        lv_color_t color = getTemperatureColor(percentage);
+        lv_obj_set_style_bg_color(motor_temp_bar, color, LV_PART_INDICATOR);
     }
     if (motor_temp_value) {
         lv_label_set_text_fmt(motor_temp_value, "%dC", (int)temp_c);
@@ -222,6 +252,14 @@ void DashboardUI::updateInverterTemp(uint8_t temp_c) {
     if (inverter_temp_bar) {
         int v = std::max(0, std::min((int)temp_c, 70));
         lv_bar_set_value(inverter_temp_bar, v, LV_ANIM_ON);
+
+        // Calculate percentage (range: 0-70°C)
+        float percentage = ((float)temp_c - 0.0f) / (70.0f - 0.0f) * 100.0f;
+        percentage = std::max(0.0f, std::min(percentage, 100.0f));
+
+        // Set color based on percentage
+        lv_color_t color = getTemperatureColor(percentage);
+        lv_obj_set_style_bg_color(inverter_temp_bar, color, LV_PART_INDICATOR);
     }
     if (inverter_temp_value) {
         lv_label_set_text_fmt(inverter_temp_value, "%dC", (int)temp_c);

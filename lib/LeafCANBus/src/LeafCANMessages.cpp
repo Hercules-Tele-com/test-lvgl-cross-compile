@@ -574,3 +574,269 @@ void pack_emboo_pack_data2(const void* state, uint8_t* data, uint8_t* len) {
 }
 
 #endif // EMBOO_BATTERY
+
+// ============================================================================
+// ROAM MOTOR PACK/UNPACK FUNCTIONS
+// ============================================================================
+
+#ifdef ROAM_MOTOR
+
+// ============================================================================
+// MOTOR TORQUE (0x0AC)
+// ============================================================================
+
+void unpack_roam_motor_torque(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 4 || !state) return;
+    RoamMotorTorque* s = (RoamMotorTorque*)state;
+
+    // Little-endian format, Nm (no scaling)
+    s->torque_request = (int16_t)((data[1] << 8) | data[0]);
+    s->torque_actual = (int16_t)((data[3] << 8) | data[2]);
+}
+
+void pack_roam_motor_torque(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorTorque* s = (const RoamMotorTorque*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->torque_request & 0xFF;
+    data[1] = (s->torque_request >> 8) & 0xFF;
+    data[2] = s->torque_actual & 0xFF;
+    data[3] = (s->torque_actual >> 8) & 0xFF;
+    *len = 4;
+}
+
+// ============================================================================
+// MOTOR POSITION (0x0A5)
+// ============================================================================
+
+void unpack_roam_motor_position(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorPosition* s = (RoamMotorPosition*)state;
+
+    // Little-endian format
+    s->motor_angle = (data[0] << 8) | data[1];
+    s->motor_rpm = (int16_t)((data[3] << 8) | data[2]);
+    s->electrical_freq = (data[4] << 8) | data[5];
+    s->delta_resolver = (int16_t)((data[6] << 8) | data[7]);
+}
+
+void pack_roam_motor_position(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorPosition* s = (const RoamMotorPosition*)state;
+
+    memset(data, 0, 8);
+    data[0] = (s->motor_angle >> 8) & 0xFF;
+    data[1] = s->motor_angle & 0xFF;
+    data[2] = s->motor_rpm & 0xFF;
+    data[3] = (s->motor_rpm >> 8) & 0xFF;
+    data[4] = (s->electrical_freq >> 8) & 0xFF;
+    data[5] = s->electrical_freq & 0xFF;
+    data[6] = (s->delta_resolver >> 8) & 0xFF;
+    data[7] = s->delta_resolver & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// MOTOR VOLTAGE (0x0A7)
+// ============================================================================
+
+void unpack_roam_motor_voltage(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorVoltage* s = (RoamMotorVoltage*)state;
+
+    // Little-endian format (big-endian pairs)
+    s->dc_bus_voltage = (data[0] << 8) | data[1];
+    s->output_voltage = (data[2] << 8) | data[3];
+    s->vab_vd_voltage = (data[4] << 8) | data[5];
+    s->vbc_vq_voltage = (data[6] << 8) | data[7];
+}
+
+void pack_roam_motor_voltage(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorVoltage* s = (const RoamMotorVoltage*)state;
+
+    memset(data, 0, 8);
+    data[0] = (s->dc_bus_voltage >> 8) & 0xFF;
+    data[1] = s->dc_bus_voltage & 0xFF;
+    data[2] = (s->output_voltage >> 8) & 0xFF;
+    data[3] = s->output_voltage & 0xFF;
+    data[4] = (s->vab_vd_voltage >> 8) & 0xFF;
+    data[5] = s->vab_vd_voltage & 0xFF;
+    data[6] = (s->vbc_vq_voltage >> 8) & 0xFF;
+    data[7] = s->vbc_vq_voltage & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// MOTOR CURRENT (0x0A6)
+// ============================================================================
+
+void unpack_roam_motor_current(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorCurrent* s = (RoamMotorCurrent*)state;
+
+    // Little-endian format (big-endian pairs)
+    s->phase_a_current = (int16_t)((data[0] << 8) | data[1]);
+    s->phase_b_current = (int16_t)((data[2] << 8) | data[3]);
+    s->phase_c_current = (int16_t)((data[4] << 8) | data[5]);
+    s->dc_bus_current = (int16_t)((data[6] << 8) | data[7]);
+}
+
+void pack_roam_motor_current(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorCurrent* s = (const RoamMotorCurrent*)state;
+
+    memset(data, 0, 8);
+    data[0] = (s->phase_a_current >> 8) & 0xFF;
+    data[1] = s->phase_a_current & 0xFF;
+    data[2] = (s->phase_b_current >> 8) & 0xFF;
+    data[3] = s->phase_b_current & 0xFF;
+    data[4] = (s->phase_c_current >> 8) & 0xFF;
+    data[5] = s->phase_c_current & 0xFF;
+    data[6] = (s->dc_bus_current >> 8) & 0xFF;
+    data[7] = s->dc_bus_current & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// MOTOR TEMPERATURES #1 (0x0A0)
+// ============================================================================
+
+void unpack_roam_motor_temp1(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorTemp1* s = (RoamMotorTemp1*)state;
+
+    // Little-endian format (big-endian pairs), °C * 10
+    s->igbt_a_temp = (int16_t)((data[1] << 8) | data[0]);
+    s->igbt_b_temp = (int16_t)((data[3] << 8) | data[2]);
+    s->igbt_c_temp = (int16_t)((data[5] << 8) | data[4]);
+    s->gate_driver_temp = (int16_t)((data[7] << 8) | data[6]);
+}
+
+void pack_roam_motor_temp1(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorTemp1* s = (const RoamMotorTemp1*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->igbt_a_temp & 0xFF;
+    data[1] = (s->igbt_a_temp >> 8) & 0xFF;
+    data[2] = s->igbt_b_temp & 0xFF;
+    data[3] = (s->igbt_b_temp >> 8) & 0xFF;
+    data[4] = s->igbt_c_temp & 0xFF;
+    data[5] = (s->igbt_c_temp >> 8) & 0xFF;
+    data[6] = s->gate_driver_temp & 0xFF;
+    data[7] = (s->gate_driver_temp >> 8) & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// MOTOR TEMPERATURES #2 (0x0A1)
+// ============================================================================
+
+void unpack_roam_motor_temp2(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorTemp2* s = (RoamMotorTemp2*)state;
+
+    // Little-endian format (big-endian pairs), °C * 10
+    s->control_board_temp = (int16_t)((data[1] << 8) | data[0]);
+    s->rtd1_temp = (int16_t)((data[3] << 8) | data[2]);
+    s->rtd2_temp = (int16_t)((data[5] << 8) | data[4]);
+    s->rtd3_temp = (int16_t)((data[7] << 8) | data[6]);
+}
+
+void pack_roam_motor_temp2(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorTemp2* s = (const RoamMotorTemp2*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->control_board_temp & 0xFF;
+    data[1] = (s->control_board_temp >> 8) & 0xFF;
+    data[2] = s->rtd1_temp & 0xFF;
+    data[3] = (s->rtd1_temp >> 8) & 0xFF;
+    data[4] = s->rtd2_temp & 0xFF;
+    data[5] = (s->rtd2_temp >> 8) & 0xFF;
+    data[6] = s->rtd3_temp & 0xFF;
+    data[7] = (s->rtd3_temp >> 8) & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// MOTOR TEMPERATURES #3 (0x0A2)
+// ============================================================================
+
+void unpack_roam_motor_temp3(const uint8_t* data, uint8_t len, void* state) {
+    if (len < 8 || !state) return;
+    RoamMotorTemp3* s = (RoamMotorTemp3*)state;
+
+    // Little-endian format (big-endian pairs), °C * 10
+    s->rtd4_temp = (int16_t)((data[1] << 8) | data[0]);
+    s->rtd5_temp = (int16_t)((data[3] << 8) | data[2]);
+    s->stator_temp = (int16_t)((data[5] << 8) | data[4]);
+    s->torque_shudder = (int16_t)((data[7] << 8) | data[6]);
+}
+
+void pack_roam_motor_temp3(const void* state, uint8_t* data, uint8_t* len) {
+    if (!state || !data || !len) return;
+    const RoamMotorTemp3* s = (const RoamMotorTemp3*)state;
+
+    memset(data, 0, 8);
+    data[0] = s->rtd4_temp & 0xFF;
+    data[1] = (s->rtd4_temp >> 8) & 0xFF;
+    data[2] = s->rtd5_temp & 0xFF;
+    data[3] = (s->rtd5_temp >> 8) & 0xFF;
+    data[4] = s->stator_temp & 0xFF;
+    data[5] = (s->stator_temp >> 8) & 0xFF;
+    data[6] = s->torque_shudder & 0xFF;
+    data[7] = (s->torque_shudder >> 8) & 0xFF;
+    *len = 8;
+}
+
+// ============================================================================
+// COMPREHENSIVE MOTOR STATE UPDATE
+// ============================================================================
+
+void update_roam_motor_state(RoamMotorState* state, const RoamMotorTorque* torque,
+                             const RoamMotorPosition* position, const RoamMotorVoltage* voltage,
+                             const RoamMotorCurrent* current, const RoamMotorTemp2* temp2,
+                             const RoamMotorTemp3* temp3) {
+    if (!state) return;
+
+    // Update torque
+    if (torque) {
+        state->torque_request = torque->torque_request;
+        state->torque_actual = torque->torque_actual;
+    }
+
+    // Update speed and position
+    if (position) {
+        state->motor_rpm = position->motor_rpm;
+        state->motor_angle = position->motor_angle;
+    }
+
+    // Update electrical
+    if (voltage && current) {
+        state->dc_voltage = voltage->dc_bus_voltage;
+        state->dc_current = current->dc_bus_current;
+
+        // Calculate electrical power (W)
+        state->electrical_power = (int16_t)((int32_t)state->dc_voltage * (int32_t)state->dc_current / 1000);
+
+        // Calculate mechanical power (W) = (Torque * RPM * 2π) / 60
+        // Simplified: MPwr ≈ Torque * RPM / 9.5488
+        if (torque && position) {
+            state->mechanical_power = (int16_t)(((int32_t)torque->torque_actual * (int32_t)position->motor_rpm) / 10);
+        }
+    }
+
+    // Update temperatures (°C * 10 → °C)
+    if (temp2) {
+        state->inverter_temp = (int8_t)(temp2->control_board_temp / 10);
+    }
+
+    if (temp3) {
+        state->stator_temp = (int8_t)(temp3->stator_temp / 10);
+    }
+}
+
+#endif // ROAM_MOTOR
