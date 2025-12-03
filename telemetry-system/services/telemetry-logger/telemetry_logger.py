@@ -428,14 +428,14 @@ class CANTelemetryLogger:
         if len(data) < 8:
             return None
 
-        # Big-endian pairs
-        dc_bus_voltage = (data[0] << 8) | data[1]  # V
-        output_voltage = (data[2] << 8) | data[3]  # V
+        # Little-endian pairs, 0.1V resolution
+        dc_bus_voltage = int.from_bytes([data[0], data[1]], 'little') * 0.1  # V
+        output_voltage = int.from_bytes([data[2], data[3]], 'little') * 0.1  # V
 
         point = Point("motor_voltage") \
             .tag("source", "roam_motor") \
-            .field("dc_bus_voltage", int(dc_bus_voltage)) \
-            .field("output_voltage", int(output_voltage))
+            .field("dc_bus_voltage", float(dc_bus_voltage)) \
+            .field("output_voltage", float(output_voltage))
 
         return point
 
@@ -444,11 +444,11 @@ class CANTelemetryLogger:
         if len(data) < 8:
             return None
 
-        # Big-endian pairs, signed
-        phase_a = int.from_bytes([data[0], data[1]], 'big', signed=True)
-        phase_b = int.from_bytes([data[2], data[3]], 'big', signed=True)
-        phase_c = int.from_bytes([data[4], data[5]], 'big', signed=True)
-        dc_bus_current = int.from_bytes([data[6], data[7]], 'big', signed=True)
+        # Little-endian pairs, signed, 1A resolution
+        phase_a = int.from_bytes([data[0], data[1]], 'little', signed=True)
+        phase_b = int.from_bytes([data[2], data[3]], 'little', signed=True)
+        phase_c = int.from_bytes([data[4], data[5]], 'little', signed=True)
+        dc_bus_current = int.from_bytes([data[6], data[7]], 'little', signed=True)
 
         point = Point("motor_current") \
             .tag("source", "roam_motor") \
