@@ -38,8 +38,7 @@ sleep 2
 
 # 3. Start telemetry services
 echo "Starting telemetry services..."
-sudo systemctl start telemetry-logger.service
-sudo systemctl start telemetry-logger-can1.service
+sudo systemctl start telemetry-logger-unified.service
 sudo systemctl start cloud-sync.service
 sudo systemctl start web-dashboard.service
 
@@ -50,8 +49,7 @@ echo "================================"
 echo "Service Status:"
 echo "================================"
 systemctl status influxdb --no-pager -l | grep Active
-systemctl status telemetry-logger.service --no-pager -l | grep Active
-systemctl status telemetry-logger-can1.service --no-pager -l | grep Active
+systemctl status telemetry-logger-unified.service --no-pager -l | grep Active
 systemctl status cloud-sync.service --no-pager -l | grep Active
 systemctl status web-dashboard.service --no-pager -l | grep Active
 
@@ -83,4 +81,4 @@ echo "  candump can0"
 echo "  candump can1"
 echo ""
 echo "To view logs:"
-echo "  sudo journalctl -u telemetry-logger.service -f"
+echo "  sudo journalctl -u telemetry-logger-unified.service -f"

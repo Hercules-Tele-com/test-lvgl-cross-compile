@@ -5,8 +5,7 @@ echo "Shutting down Nissan Leaf CAN Network System..."
 
 # 1. Stop telemetry services
 echo "Stopping telemetry services..."
-sudo systemctl stop telemetry-logger.service
-sudo systemctl stop telemetry-logger-can1.service
+sudo systemctl stop telemetry-logger-unified.service
 sudo systemctl stop cloud-sync.service
 sudo systemctl stop web-dashboard.service
 

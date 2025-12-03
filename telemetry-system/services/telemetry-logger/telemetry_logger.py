@@ -63,12 +63,11 @@ logger = logging.getLogger(__name__)
 
 
 class CANTelemetryLogger:
-    """CAN to InfluxDB telemetry logger"""
+    """CAN to InfluxDB telemetry logger - supports multiple CAN interfaces"""
 
-    def __init__(self, can_interface: str = "can0"):
-        self.can_interface = can_interface
+    def __init__(self):
         self.running = False
-        self.bus: Optional[can.Bus] = None
+        self.buses: Dict[str, can.Bus] = {}
         self.influx_client: Optional[InfluxDBClient] = None
         self.write_api = None
 
@@ -77,28 +76,59 @@ class CANTelemetryLogger:
         self.influx_org = os.getenv("INFLUX_ORG", "leaf-telemetry")
         self.influx_bucket = os.getenv("INFLUX_BUCKET", "leaf-data")
         self.influx_token = os.getenv("INFLUX_LOGGER_TOKEN", "")
-        self.can_bitrate = int(os.getenv("CAN_BITRATE", "250000"))  # Default to EMBOO (250 kbps)
 
         if not self.influx_token:
             raise ValueError("INFLUX_LOGGER_TOKEN environment variable not set")
 
-        # Statistics
-        self.msg_count = 0
-        self.write_count = 0
-        self.error_count = 0
-        self.last_stats_time = time.time()
+        # Parse CAN interface configuration
+        # Format: CAN_INTERFACES=can0,can1  CAN_BITRATES=250000,250000
+        can_interfaces = os.getenv("CAN_INTERFACES", os.getenv("CAN_INTERFACE", "can0"))
+        can_bitrates = os.getenv("CAN_BITRATES", os.getenv("CAN_BITRATE", "250000"))
+
+        self.can_configs = []
+        interfaces = [i.strip() for i in can_interfaces.split(',')]
+        bitrates = [int(b.strip()) for b in can_bitrates.split(',')]
+
+        # If only one bitrate specified but multiple interfaces, use same bitrate for all
+        if len(bitrates) == 1 and len(interfaces) > 1:
+            bitrates = bitrates * len(interfaces)
+
+        # Validate configuration
+        if len(interfaces) != len(bitrates):
+            raise ValueError(f"Number of CAN interfaces ({len(interfaces)}) must match number of bitrates ({len(bitrates)})")
+
+        for iface, bitrate in zip(interfaces, bitrates):
+            self.can_configs.append({'interface': iface, 'bitrate': bitrate})
+
+        # Statistics (per interface)
+        self.stats = {}
+        for config in self.can_configs:
+            iface = config['interface']
+            self.stats[iface] = {
+                'msg_count': 0,
+                'write_count': 0,
+                'error_count': 0,
+                'last_stats_time': time.time()
+            }
 
     def init(self) -> bool:
-        """Initialize CAN bus and InfluxDB connection"""
+        """Initialize CAN buses and InfluxDB connection"""
         try:
-            # Initialize CAN bus
-            logger.info(f"Initializing CAN interface: {self.can_interface} at {self.can_bitrate} bps")
-            self.bus = can.Bus(
-                interface='socketcan',
-                channel=self.can_interface,
-                bitrate=self.can_bitrate
-            )
-            logger.info("CAN bus initialized successfully")
+            # Initialize all CAN buses
+            logger.info(f"Initializing {len(self.can_configs)} CAN interface(s)...")
+            for config in self.can_configs:
+                iface = config['interface']
+                bitrate = config['bitrate']
+                logger.info(f"  - {iface} at {bitrate} bps")
+
+                bus = can.Bus(
+                    interface='socketcan',
+                    channel=iface,
+                    bitrate=bitrate
+                )
+                self.buses[iface] = bus
+
+            logger.info("All CAN buses initialized successfully")
 
             # Initialize InfluxDB client
             logger.info(f"Connecting to InfluxDB: {self.influx_url}")
@@ -339,19 +369,19 @@ class CANTelemetryLogger:
 
     def parse_emboo_temperatures(self, data: bytes) -> Optional[Point]:
         """Parse EMBOO temperatures (0x6B4)"""
-        if len(data) < 8:
+        if len(data) < 6:
             return None
 
-        # Big-endian format
-        high_temp = int.from_bytes(data[2:4], 'big') * 0.1  # °C
-        low_temp = int.from_bytes(data[4:6], 'big') * 0.1  # °C
+        # Orion BMS format: single-byte temperatures at bytes 4-5
+        high_temp = int.from_bytes([data[4]], 'big', signed=True)  # °C (signed byte)
+        low_temp = int.from_bytes([data[5]], 'big', signed=True)   # °C (signed byte)
 
         point = Point("battery_temp") \
             .tag("source", "emboo_bms") \
-            .field("temp_max", float(high_temp)) \
-            .field("temp_min", float(low_temp)) \
+            .field("temp_max", int(high_temp)) \
+            .field("temp_min", int(low_temp)) \
             .field("temp_avg", float((high_temp + low_temp) / 2.0)) \
-            .field("temp_delta", float(high_temp - low_temp))
+            .field("temp_delta", int(high_temp - low_temp))
 
         return point
 
@@ -457,9 +487,10 @@ class CANTelemetryLogger:
 
         return point
 
-    def process_can_message(self, msg: can.Message):
+    def process_can_message(self, msg: can.Message, source_interface: str = "unknown"):
         """Process a single CAN message and write to InfluxDB"""
-        self.msg_count += 1
+        if source_interface in self.stats:
+            self.stats[source_interface]['msg_count'] += 1
 
         point = None
 
@@ -507,43 +538,48 @@ class CANTelemetryLogger:
         if point:
             try:
                 self.write_api.write(bucket=self.influx_bucket, record=point)
-                self.write_count += 1
+                if source_interface in self.stats:
+                    self.stats[source_interface]['write_count'] += 1
             except Exception as e:
-                self.error_count += 1
+                if source_interface in self.stats:
+                    self.stats[source_interface]['error_count'] += 1
                 logger.error(f"Failed to write to InfluxDB: {e}")
 
     def print_statistics(self):
-        """Print periodic statistics"""
+        """Print periodic statistics for all interfaces"""
         now = time.time()
-        elapsed = now - self.last_stats_time
 
-        if elapsed >= 10.0:  # Every 10 seconds
-            msg_rate = self.msg_count / elapsed
-            write_rate = self.write_count / elapsed
+        for iface, stats in self.stats.items():
+            elapsed = now - stats['last_stats_time']
 
-            logger.info(
-                f"Stats: {self.msg_count} msgs ({msg_rate:.1f}/s), "
-                f"{self.write_count} writes ({write_rate:.1f}/s), "
-                f"{self.error_count} errors"
-            )
+            if elapsed >= 10.0:  # Every 10 seconds
+                msg_rate = stats['msg_count'] / elapsed
+                write_rate = stats['write_count'] / elapsed
 
-            self.msg_count = 0
-            self.write_count = 0
-            self.error_count = 0
-            self.last_stats_time = now
+                logger.info(
+                    f"[{iface}] Stats: {stats['msg_count']} msgs ({msg_rate:.1f}/s), "
+                    f"{stats['write_count']} writes ({write_rate:.1f}/s), "
+                    f"{stats['error_count']} errors"
+                )
+
+                stats['msg_count'] = 0
+                stats['write_count'] = 0
+                stats['error_count'] = 0
+                stats['last_stats_time'] = now
 
     def run(self):
-        """Main loop: read CAN messages and log to InfluxDB"""
+        """Main loop: read CAN messages from all interfaces and log to InfluxDB"""
         self.running = True
         logger.info("Starting telemetry logger main loop")
 
         try:
             while self.running:
-                # Read CAN message (blocking with timeout)
-                msg = self.bus.recv(timeout=1.0)
+                # Read from all CAN buses
+                for iface, bus in self.buses.items():
+                    msg = bus.recv(timeout=0.01)  # Short timeout to check all buses frequently
 
-                if msg:
-                    self.process_can_message(msg)
+                    if msg:
+                        self.process_can_message(msg, source_interface=iface)
 
                 # Print periodic statistics
                 self.print_statistics()
@@ -564,8 +600,11 @@ class CANTelemetryLogger:
             self.write_api.close()
         if self.influx_client:
             self.influx_client.close()
-        if self.bus:
-            self.bus.shutdown()
+
+        # Shutdown all CAN buses
+        for iface, bus in self.buses.items():
+            logger.info(f"Shutting down {iface}")
+            bus.shutdown()
 
         logger.info("Cleanup complete")
 
@@ -577,13 +616,10 @@ class CANTelemetryLogger:
 
 def main():
     """Main entry point"""
-    can_interface = os.getenv("CAN_INTERFACE", "can0")
-
     logger.info("=== Nissan Leaf CAN Telemetry Logger ===")
-    logger.info(f"CAN Interface: {can_interface}")
 
     try:
-        logger_service = CANTelemetryLogger(can_interface)
+        logger_service = CANTelemetryLogger()
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, logger_service.signal_handler)
