@@ -41,22 +41,108 @@ candump can0
 
 ---
 
+## Helper Scripts
+
+Automated scripts are available in the `scripts/` directory to simplify common operations:
+
+### Start Everything
+
+```bash
+cd ~/test-lvgl-cross-compile/scripts
+./start-system.sh
+```
+
+This script will:
+- Configure both can0 and can1 at 250 kbps (EMBOO battery)
+- Start InfluxDB
+- Start all telemetry services
+- Display status of all services and CAN interfaces
+
+### Check System Status
+
+```bash
+cd ~/test-lvgl-cross-compile/scripts
+./check-system.sh
+```
+
+Shows comprehensive status including:
+- CAN interface status for both can0 and can1
+- Service status (InfluxDB, telemetry, web dashboard)
+- CAN message activity (5-second sample)
+- Web dashboard accessibility
+- System resources
+
+### Stop Everything
+
+```bash
+cd ~/test-lvgl-cross-compile/scripts
+./stop-system.sh
+```
+
+Cleanly stops all services and brings down CAN interfaces.
+
+### Test CAN Interfaces
+
+```bash
+cd ~/test-lvgl-cross-compile/scripts
+
+# For EMBOO battery (250 kbps)
+./test-can.sh EMBOO
+
+# For Nissan Leaf battery (500 kbps)
+./test-can.sh NISSAN_LEAF
+```
+
+Performs comprehensive CAN bus testing:
+- Sets up both can0 and can1
+- Runs loopback tests
+- Monitors live traffic
+- Shows battery-specific CAN IDs to monitor
+
+### Test GPS Module
+
+```bash
+cd ~/test-lvgl-cross-compile/scripts
+./test-gps.sh
+```
+
+Automatically tests USB GPS module:
+- Detects USB serial devices
+- Tests multiple baud rates (9600, 4800, 115200)
+- Reads and parses NMEA sentences
+- Shows GPS fix status and satellite count
+- Provides next steps for CAN integration
+
+---
+
 ## CAN Bus Setup
 
-### Configure CAN Interface
+### Configure CAN Interfaces
 
 **For EMBOO Battery (Orion BMS, 250 kbps):**
 ```bash
+# Configure can0
 sudo ip link set can0 down  # If already up
 sudo ip link set can0 type can bitrate 250000
 sudo ip link set can0 up
+
+# Configure can1
+sudo ip link set can1 down  # If already up
+sudo ip link set can1 type can bitrate 250000
+sudo ip link set can1 up
 ```
 
 **For Nissan Leaf Battery (500 kbps):**
 ```bash
+# Configure can0
 sudo ip link set can0 down  # If already up
 sudo ip link set can0 type can bitrate 500000
 sudo ip link set can0 up
+
+# Configure can1
+sudo ip link set can1 down  # If already up
+sudo ip link set can1 type can bitrate 500000
+sudo ip link set can1 up
 ```
 
 ### Verify CAN Interface

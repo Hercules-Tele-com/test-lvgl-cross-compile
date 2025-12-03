@@ -7,17 +7,29 @@ echo "==================================================================="
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "CAN Interface:"
+echo "CAN Interfaces:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# Check can0
 if ip link show can0 >/dev/null 2>&1; then
+    echo "can0:"
     ip -details link show can0 | grep -E "can0|bitrate|state"
     echo ""
-
-    # Check for errors
-    echo "CAN Statistics:"
-    ip -details -statistics link show can0 | grep -E "RX|TX|errors"
+    echo "  Statistics:"
+    ip -details -statistics link show can0 | grep -E "RX|TX|errors" | sed 's/^/  /'
 else
-    echo "✗ CAN interface not found"
+    echo "✗ can0: not found"
+fi
+echo ""
+
+# Check can1
+if ip link show can1 >/dev/null 2>&1; then
+    echo "can1:"
+    ip -details link show can1 | grep -E "can1|bitrate|state"
+    echo ""
+    echo "  Statistics:"
+    ip -details -statistics link show can1 | grep -E "RX|TX|errors" | sed 's/^/  /'
+else
+    echo "⚠ can1: not found (may not be present)"
 fi
 echo ""
 
@@ -33,15 +45,28 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "CAN Message Activity (5 second sample):"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# Check can0
 if ip link show can0 >/dev/null 2>&1 && [ "$(ip link show can0 | grep -c 'state UP')" -eq 1 ]; then
     MSG_COUNT=$(timeout 5 candump can0 2>/dev/null | wc -l)
     if [ "$MSG_COUNT" -gt 0 ]; then
-        echo "✓ Received $MSG_COUNT messages in 5 seconds (~$((MSG_COUNT/5)) msg/sec)"
+        echo "can0: ✓ Received $MSG_COUNT messages in 5 seconds (~$((MSG_COUNT/5)) msg/sec)"
     else
-        echo "⚠ No CAN messages received in 5 seconds"
+        echo "can0: ⚠ No messages received in 5 seconds"
     fi
 else
-    echo "✗ CAN interface is down"
+    echo "can0: ✗ Interface is down"
+fi
+
+# Check can1
+if ip link show can1 >/dev/null 2>&1 && [ "$(ip link show can1 | grep -c 'state UP')" -eq 1 ]; then
+    MSG_COUNT=$(timeout 5 candump can1 2>/dev/null | wc -l)
+    if [ "$MSG_COUNT" -gt 0 ]; then
+        echo "can1: ✓ Received $MSG_COUNT messages in 5 seconds (~$((MSG_COUNT/5)) msg/sec)"
+    else
+        echo "can1: ⚠ No messages received in 5 seconds"
+    fi
+else
+    echo "can1: ✗ Interface is down or not present"
 fi
 echo ""
 
