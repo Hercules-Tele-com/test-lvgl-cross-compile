@@ -113,22 +113,34 @@ function updateDashboard(data) {
         updateComponentStatus('statusCharger', data.components.charger);
     }
 
-    // Victron Battery Data (Primary)
-    if (data.victron_soc) {
-        updateElement('victronSocValue', Math.round(data.victron_soc.soc_percent || 0));
-    }
+    // EMBOO Battery Data (Primary) - Schema V2
+    if (data.battery) {
+        // SOC
+        if (data.battery.soc_percent !== undefined) {
+            updateElement('victronSocValue', Math.round(data.battery.soc_percent || 0));
+        }
 
-    if (data.victron_pack) {
-        updateElement('victronVoltageValue', (data.victron_pack.voltage || 0).toFixed(1));
-        updateElement('victronCurrentValue', (data.victron_pack.current || 0).toFixed(1));
-        updateElement('victronPowerValue', (data.victron_pack.power_kw || 0).toFixed(2));
-        updateElement('victronTempValue', Math.round(data.victron_pack.temperature || 0));
-    }
+        // Voltage, Current, Power, Temperature
+        updateElement('victronVoltageValue', (data.battery.voltage || 0).toFixed(1));
+        updateElement('victronCurrentValue', (data.battery.current || 0).toFixed(1));
 
-    if (data.victron_cells) {
-        const minV = data.victron_cells.min_voltage_mv || 0;
-        const maxV = data.victron_cells.max_voltage_mv || 0;
-        updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
+        // Calculate power if not provided (P = V * I / 1000)
+        const power = data.battery.power_kw ||
+                     ((data.battery.voltage || 0) * (data.battery.current || 0) / 1000);
+        updateElement('victronPowerValue', power.toFixed(2));
+
+        // Temperature (use avg or highest available)
+        const temp = data.battery.temp_avg || data.battery.temp_high ||
+                    data.battery.temperature || 0;
+        updateElement('victronTempValue', Math.round(temp));
+
+        // Cell voltages (convert V to mV for display)
+        if (data.battery.cell_voltage_min !== undefined &&
+            data.battery.cell_voltage_max !== undefined) {
+            const minV = Math.round((data.battery.cell_voltage_min || 0) * 1000);
+            const maxV = Math.round((data.battery.cell_voltage_max || 0) * 1000);
+            updateElement('victronCellVoltageRange', `${minV} - ${maxV}`);
+        }
     }
 
     // Inverter and Motor Temperatures
@@ -547,14 +559,9 @@ function loadDetailsData() {
         .then(response => response.json())
         .then(data => {
             updateElement('detailsInverter', JSON.stringify(data.inverter || {}, null, 2));
-            updateElement('detailsBattery', JSON.stringify({
-                pack: data.victron_pack || {},
-                soc: data.victron_soc || {},
-                cells: data.victron_cells || {},
-                limits: data.victron_limits || {},
-                info: data.victron_info || {}
-            }, null, 2));
-            updateElement('detailsMotor', JSON.stringify(data.motor_rpm || {}, null, 2));
+            // Show EMBOO Battery data (Schema V2)
+            updateElement('detailsBattery', JSON.stringify(data.battery || {}, null, 2));
+            updateElement('detailsMotor', JSON.stringify(data.motor || data.motor_rpm || {}, null, 2));
             updateElement('detailsGps', JSON.stringify({
                 position: data.gps_position || {},
                 velocity: data.gps_velocity || {},
