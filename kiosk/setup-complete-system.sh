@@ -248,9 +248,25 @@ echo "✓ InfluxDB configuration cleaned"
 echo ""
 
 # ============================================================================
-# Step 3: Enable all services
+# Step 3: Set up GPS time sync (works offline)
 # ============================================================================
-echo -e "${BLUE}[Step 3/7] Enabling all services for autostart...${NC}"
+echo -e "${BLUE}[Step 3/8] Setting up GPS time sync...${NC}"
+
+GPS_TIME_SYNC_SERVICE="$PROJECT_DIR/telemetry-system/systemd/gps-time-sync.service"
+if [ -f "$GPS_TIME_SYNC_SERVICE" ]; then
+    sudo cp "$GPS_TIME_SYNC_SERVICE" /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable gps-time-sync.service
+    echo "✓ GPS time sync configured (uses GPS for accurate time when offline)"
+else
+    echo "⚠ GPS time sync service not found, skipping"
+fi
+echo ""
+
+# ============================================================================
+# Step 4: Enable all services
+# ============================================================================
+echo -e "${BLUE}[Step 4/8] Enabling all services for autostart...${NC}"
 sudo systemctl enable influxdb.service
 sudo systemctl enable telemetry-logger-unified.service
 sudo systemctl enable usb-gps-reader.service
@@ -260,9 +276,9 @@ echo "✓ All services enabled for autostart"
 echo ""
 
 # ============================================================================
-# Step 4: Configure boot to desktop
+# Step 5: Configure boot to desktop
 # ============================================================================
-echo -e "${BLUE}[Step 4/7] Configuring boot to desktop...${NC}"
+echo -e "${BLUE}[Step 5/8] Configuring boot to desktop...${NC}"
 sudo raspi-config nonint do_boot_behaviour B4
 echo "✓ Configured to boot to desktop with autologin"
 echo ""
