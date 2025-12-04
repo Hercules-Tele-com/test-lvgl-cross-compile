@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leaf Telemetry</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -151,6 +153,13 @@
             color: #4CAF50;
         }
 
+        #map {
+            height: 300px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
         @media (max-width: 768px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -234,27 +243,22 @@
             </div>
 
             <!-- GPS Section -->
-            <div class="card">
-                <h2>📍 GPS</h2>
-                <div class="metric-row">
-                    <span class="metric-row-label">Latitude</span>
-                    <span class="metric-row-value" id="latitude">--</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-row-label">Longitude</span>
-                    <span class="metric-row-value" id="longitude">--</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-row-label">Altitude</span>
-                    <span class="metric-row-value"><span id="altitude">--</span> m</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-row-label">Satellites</span>
-                    <span class="metric-row-value" id="satellites">--</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-row-label">Heading</span>
-                    <span class="metric-row-value"><span id="heading">--</span>°</span>
+            <div class="card" style="grid-column: span 2;">
+                <h2>📍 GPS Location</h2>
+                <div id="map"></div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+                    <div class="metric-row">
+                        <span class="metric-row-label">Altitude</span>
+                        <span class="metric-row-value"><span id="altitude">--</span> m</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-row-label">Satellites</span>
+                        <span class="metric-row-value" id="satellites">--</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-row-label">Heading</span>
+                        <span class="metric-row-value"><span id="heading">--</span>°</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -275,6 +279,46 @@
 
     <script>
         let socket = null;
+        let map = null;
+        let marker = null;
+
+        // Initialize map
+        function initMap() {
+            // Default to Nairobi, Kenya (user's approximate location from GPS logs)
+            const defaultLat = -1.4149;
+            const defaultLon = 35.1244;
+
+            map = L.map('map').setView([defaultLat, defaultLon], 15);
+
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add marker for vehicle position
+            marker = L.marker([defaultLat, defaultLon]).addTo(map);
+            marker.bindPopup('Waiting for GPS fix...').openPopup();
+        }
+
+        function updateMapPosition(lat, lon, heading, satellites) {
+            if (!map || !marker) return;
+
+            // Update marker position
+            marker.setLatLng([lat, lon]);
+
+            // Update popup
+            const popupText = `
+                Lat: ${lat.toFixed(6)}<br>
+                Lon: ${lon.toFixed(6)}<br>
+                Heading: ${heading}°<br>
+                Satellites: ${satellites}
+            `;
+            marker.bindPopup(popupText);
+
+            // Center map on new position
+            map.setView([lat, lon], map.getZoom());
+        }
 
         // Initialize WebSocket
         function initWebSocket() {
@@ -362,14 +406,6 @@
                     updateElement('speed', g.speed_kmh.toFixed(1));
                 }
 
-                // Position
-                if (g.latitude !== undefined) {
-                    updateElement('latitude', g.latitude.toFixed(6));
-                }
-                if (g.longitude !== undefined) {
-                    updateElement('longitude', g.longitude.toFixed(6));
-                }
-
                 // Altitude
                 if (g.altitude !== undefined) {
                     updateElement('altitude', Math.round(g.altitude));
@@ -383,6 +419,16 @@
                 // Heading
                 if (g.heading !== undefined) {
                     updateElement('heading', Math.round(g.heading));
+                }
+
+                // Update map if we have valid position
+                if (g.latitude !== undefined && g.longitude !== undefined) {
+                    updateMapPosition(
+                        g.latitude,
+                        g.longitude,
+                        g.heading || 0,
+                        g.satellites || 0
+                    );
                 }
             } else {
                 updateElement('speed', '--');
@@ -411,6 +457,7 @@
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', () => {
+            initMap();
             initWebSocket();
             fetchInitialData();
         });
