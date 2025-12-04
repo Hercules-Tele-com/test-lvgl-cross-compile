@@ -442,12 +442,12 @@ class CANTelemetryLogger:
 
     def parse_emboo_temperatures(self, data: bytes) -> Optional[Point]:
         """Parse EMBOO temperatures (0x6B4)"""
-        if len(data) < 6:
+        if len(data) < 4:
             return None
 
-        # Orion BMS format: single-byte temperatures at bytes 4-5
-        high_temp = int.from_bytes([data[4]], 'big', signed=True)  # °C (signed byte)
-        low_temp = int.from_bytes([data[5]], 'big', signed=True)   # °C (signed byte)
+        # Orion BMS format: single-byte temperatures at bytes 2-3
+        high_temp = data[2]  # °C (unsigned byte)
+        low_temp = data[3]   # °C (unsigned byte)
 
         point = Point("Battery") \
             .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
