@@ -17,22 +17,34 @@ public:
     bool init();
     void update();
 
-    // BMS Pack data (Victron: 0x356 voltage/current, 0x355 SOC)
-    uint16_t getPackVoltage() const { return pack_voltage_.load(std::memory_order_relaxed); } // V * 100 (0.01V)
-    int16_t getPackCurrent() const { return pack_current_.load(std::memory_order_relaxed); }  // A * 10 (0.1A)
-    uint16_t getSOC() const { return soc_.load(std::memory_order_relaxed); }                  // % (0-100)
+    // BMS Battery Limits (0x351) - Victron protocol
+    int16_t getChargeVoltageSetpoint() const { return charge_voltage_setpoint_.load(std::memory_order_relaxed); } // V * 10
+    int16_t getChargeCurrentLimit() const { return charge_current_limit_.load(std::memory_order_relaxed); }       // A * 10
+    int16_t getDischargeCurrentLimit() const { return discharge_current_limit_.load(std::memory_order_relaxed); } // A * 10
+    int16_t getDischargeVoltageLimit() const { return discharge_voltage_limit_.load(std::memory_order_relaxed); } // V * 10
 
-    // BMS Current Limits (0x356)
-    uint16_t getChargeCurrentMax() const { return ichg_max_.load(std::memory_order_relaxed); } // A * 2
-    uint16_t getDischargeCurrentMax() const { return idis_max_.load(std::memory_order_relaxed); } // A * 2
+    // BMS Battery State (0x355) - Victron protocol
+    uint16_t getSOC() const { return soc_.load(std::memory_order_relaxed); }            // %
+    uint16_t getSOH() const { return soh_.load(std::memory_order_relaxed); }            // %
 
-    // BMS Temps (0x355)
-    int8_t getTempMin() const { return temp_min_.load(std::memory_order_relaxed); }     // °C
-    int8_t getTempMax() const { return temp_max_.load(std::memory_order_relaxed); }     // °C
-    int8_t getTempAvg() const { return temp_avg_.load(std::memory_order_relaxed); }     // °C
+    // BMS Battery Measurements (0x356) - Victron protocol
+    uint16_t getBatteryVoltage() const { return battery_voltage_.load(std::memory_order_relaxed); }   // V * 100
+    int16_t getBatteryCurrent() const { return battery_current_.load(std::memory_order_relaxed); }     // A * 10
+    uint16_t getBatteryTemperature() const { return battery_temperature_.load(std::memory_order_relaxed); } // °C * 10
 
-    // BMS Limits (0x35F)
-    uint8_t getSOH() const { return soh_.load(std::memory_order_relaxed); }             // %
+    // BMS Characteristics (0x35F) - Victron protocol
+    uint8_t getCellType() const { return cell_type_.load(std::memory_order_relaxed); }
+    uint8_t getCellQuantity() const { return cell_quantity_.load(std::memory_order_relaxed); }
+    uint8_t getFirmwareMajor() const { return firmware_major_.load(std::memory_order_relaxed); }
+    uint8_t getFirmwareMinor() const { return firmware_minor_.load(std::memory_order_relaxed); }
+    uint16_t getBatteryCapacity() const { return battery_capacity_.load(std::memory_order_relaxed); } // Ah
+    uint16_t getManufacturerId() const { return manufacturer_id_.load(std::memory_order_relaxed); }
+
+    // BMS Cell Extrema (0x370) - Victron protocol
+    uint16_t getMaxCellTemp() const { return max_cell_temp_.load(std::memory_order_relaxed); }       // °C
+    uint16_t getMinCellTemp() const { return min_cell_temp_.load(std::memory_order_relaxed); }       // °C
+    uint16_t getMaxCellVoltage() const { return max_cell_voltage_.load(std::memory_order_relaxed); } // mV
+    uint16_t getMinCellVoltage() const { return min_cell_voltage_.load(std::memory_order_relaxed); } // mV
 
     // Vehicle data (0x1F2)
     uint16_t getSpeed() const { return speed_.load(std::memory_order_relaxed); }        // kph * 100
@@ -60,22 +72,34 @@ public:
 private:
     void* platform_data = nullptr;     // MultiCan* on Linux, MockCANData* on Windows
 
-    // BMS Pack (Victron: 0x356 voltage/current, 0x355 SOC)
-    std::atomic<uint16_t> pack_voltage_{0};   // V * 100 (0.01V units)
-    std::atomic<int16_t> pack_current_{0};    // A * 10 (0.1A units, signed)
-    std::atomic<uint16_t> soc_{0};            // % (0-100)
+    // BMS Battery Limits (0x351) - Victron protocol
+    std::atomic<int16_t> charge_voltage_setpoint_{0};    // V * 10
+    std::atomic<int16_t> charge_current_limit_{0};       // A * 10
+    std::atomic<int16_t> discharge_current_limit_{0};    // A * 10
+    std::atomic<int16_t> discharge_voltage_limit_{0};    // V * 10
 
-    // BMS Current Limits (0x356)
-    std::atomic<uint16_t> ichg_max_{0};       // A * 2
-    std::atomic<uint16_t> idis_max_{0};       // A * 2
+    // BMS Battery State (0x355) - Victron protocol
+    std::atomic<uint16_t> soc_{0};            // %
+    std::atomic<uint16_t> soh_{0};            // %
 
-    // BMS Temps (0x355)
-    std::atomic<int8_t> temp_min_{0};
-    std::atomic<int8_t> temp_max_{0};
-    std::atomic<int8_t> temp_avg_{0};
+    // BMS Battery Measurements (0x356) - Victron protocol
+    std::atomic<uint16_t> battery_voltage_{0};      // V * 100
+    std::atomic<int16_t> battery_current_{0};       // A * 10 (signed)
+    std::atomic<uint16_t> battery_temperature_{0};  // °C * 10
 
-    // BMS Limits (0x35F)
-    std::atomic<uint8_t> soh_{0};             // %
+    // BMS Characteristics (0x35F) - Victron protocol
+    std::atomic<uint8_t> cell_type_{0};
+    std::atomic<uint8_t> cell_quantity_{0};
+    std::atomic<uint8_t> firmware_major_{0};
+    std::atomic<uint8_t> firmware_minor_{0};
+    std::atomic<uint16_t> battery_capacity_{0};     // Ah
+    std::atomic<uint16_t> manufacturer_id_{0};
+
+    // BMS Cell Extrema (0x370) - Victron protocol
+    std::atomic<uint16_t> max_cell_temp_{0};        // °C
+    std::atomic<uint16_t> min_cell_temp_{0};        // °C
+    std::atomic<uint16_t> max_cell_voltage_{0};     // mV
+    std::atomic<uint16_t> min_cell_voltage_{0};     // mV
 
     // Vehicle (0x1F2)
     std::atomic<uint16_t> speed_{0};          // kph * 100

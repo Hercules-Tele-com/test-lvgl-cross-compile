@@ -38,7 +38,9 @@
       "Bash(systemctl status:*)",
       "Bash(sudo systemctl restart:*)",
       "Bash(ip:*)",
-      "Bash(start ./leaf-can-dashboard.exe)"
+      "Bash(start ./leaf-can-dashboard.exe)",
+      "WebSearch",
+      "Bash(sudo ./leaf-can-dashboard:*)"
     ],
     "deny": [],
     "ask": []
