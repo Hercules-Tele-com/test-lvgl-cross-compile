@@ -26,7 +26,7 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-echo -e "${BLUE}[Step 1/7] Creating optimized service files with restart policies...${NC}"
+echo -e "${BLUE}[Step 1/8] Creating optimized service files with restart policies...${NC}"
 echo ""
 
 # ============================================================================
@@ -235,7 +235,7 @@ echo ""
 # ============================================================================
 # Step 2: Remove problematic InfluxDB overrides
 # ============================================================================
-echo -e "${BLUE}[Step 2/7] Cleaning up InfluxDB configuration...${NC}"
+echo -e "${BLUE}[Step 2/8] Cleaning up InfluxDB configuration...${NC}"
 
 # Remove any override.conf that might be blocking InfluxDB from starting
 if [ -d "/etc/systemd/system/influxdb.service.d" ]; then
@@ -286,7 +286,7 @@ echo ""
 # ============================================================================
 # Step 5: Configure X11 autostart
 # ============================================================================
-echo -e "${BLUE}[Step 5/7] Configuring X11 autostart...${NC}"
+echo -e "${BLUE}[Step 6/8] Configuring X11 autostart...${NC}"
 AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
 mkdir -p "$AUTOSTART_DIR"
 
@@ -304,7 +304,7 @@ echo ""
 # ============================================================================
 # Step 6: Configure sudo for health monitoring (passwordless)
 # ============================================================================
-echo -e "${BLUE}[Step 6/7] Configuring sudo for health monitoring...${NC}"
+echo -e "${BLUE}[Step 7/8] Configuring sudo for health monitoring...${NC}"
 
 # Create sudoers file for passwordless service control
 cat > /tmp/emboo-services << 'EOFSUDO'
@@ -367,7 +367,7 @@ echo ""
 # ============================================================================
 # Step 7: Start all services now
 # ============================================================================
-echo -e "${BLUE}[Step 7/7] Starting all services...${NC}"
+echo -e "${BLUE}[Step 8/8] Starting all services...${NC}"
 echo ""
 
 echo "Starting InfluxDB..."
