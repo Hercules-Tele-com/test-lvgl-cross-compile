@@ -113,7 +113,7 @@ from(bucket: "{INFLUX_BUCKET}")
 
 
 def query_all_fields(measurement: str, tag_filters: str = "") -> Dict[str, Any]:
-    """Query all fields for a measurement"""
+    """Query all fields for a measurement - merges multiple pivot rows"""
     if not query_api:
         return {}
 
@@ -129,16 +129,29 @@ from(bucket: "{INFLUX_BUCKET}")
 
         tables = query_api.query(flux_query)
 
+        # Merge all rows into a single result (handles multiple update frequencies)
+        result = {}
+        latest_time = None
+
         for table in tables:
             for record in table.records:
-                result = {"time": record.get_time().isoformat()}
-                # Add all fields
+                # Track the latest timestamp
+                record_time = record.get_time()
+                if latest_time is None or record_time > latest_time:
+                    latest_time = record_time
+
+                # Merge all fields
                 for key, value in record.values.items():
                     if not key.startswith("_") and key not in ["result", "table", "time"]:
-                        result[key] = value
-                return result
+                        # Only update if value is not None
+                        if value is not None:
+                            result[key] = value
 
-        return {}
+        # Add the latest timestamp
+        if latest_time:
+            result["time"] = latest_time.isoformat()
+
+        return result
     except Exception as e:
         logger.error(f"Query failed for {measurement}: {e}")
         return {}

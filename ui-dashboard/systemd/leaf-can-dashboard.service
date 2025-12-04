@@ -1,7 +1,7 @@
 [Unit]
 Description=Nissan Leaf CAN Dashboard (LVGL)
 Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
-After=network.target
+After=network.target telemetry-logger-unified.service
 Wants=network.target
 
 [Service]
@@ -18,8 +18,8 @@ StandardError=journal
 MemoryLimit=256M
 CPUQuota=50%
 
-# Environment
-Environment="DISPLAY=:0"
+# Environment - Remove DISPLAY for framebuffer mode
+# Environment="DISPLAY=:0"
 
 [Install]
 WantedBy=multi-user.target
