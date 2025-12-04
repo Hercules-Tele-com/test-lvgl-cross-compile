@@ -128,6 +128,9 @@ class CANTelemetryLogger:
         self.active_faults = set()
         self.fault_counts = {}
 
+        # CAN ID tracking for debugging
+        self.can_id_counts = {}
+
         # Get hostname for serial numbers
         self.hostname = socket.gethostname()
         logger.info(f"Vehicle hostname: {self.hostname}")
