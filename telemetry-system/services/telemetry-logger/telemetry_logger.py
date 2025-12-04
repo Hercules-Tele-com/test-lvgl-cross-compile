@@ -128,6 +128,9 @@ class CANTelemetryLogger:
         self.active_faults = set()
         self.fault_counts = {}
 
+        # CAN ID tracking for debugging
+        self.can_id_counts = {}
+
         # Get hostname for serial numbers
         self.hostname = socket.gethostname()
         logger.info(f"Vehicle hostname: {self.hostname}")
@@ -439,12 +442,12 @@ class CANTelemetryLogger:
 
     def parse_emboo_temperatures(self, data: bytes) -> Optional[Point]:
         """Parse EMBOO temperatures (0x6B4)"""
-        if len(data) < 6:
+        if len(data) < 4:
             return None
 
-        # Orion BMS format: single-byte temperatures at bytes 4-5
-        high_temp = int.from_bytes([data[4]], 'big', signed=True)  # °C (signed byte)
-        low_temp = int.from_bytes([data[5]], 'big', signed=True)   # °C (signed byte)
+        # Orion BMS format: single-byte temperatures at bytes 2-3
+        high_temp = data[2]  # °C (unsigned byte)
+        low_temp = data[3]   # °C (unsigned byte)
 
         point = Point("Battery") \
             .tag("serial_number", self._get_serial_number("Battery", "EMBOO")) \
@@ -463,18 +466,18 @@ class CANTelemetryLogger:
             return None
 
         # Orion BMS sends cell voltages in multiple messages
-        # Format: [cell_id, voltage_low, voltage_high, cell_id+1, voltage_low, voltage_high, ...]
-        # Voltage resolution: 0.0001V, little-endian 16-bit
+        # Format: [cell_id, voltage_high, voltage_low, cell_id+1, voltage_high, voltage_low, ...]
+        # Voltage resolution: 0.0001V, big-endian 16-bit
 
         try:
             # First cell pair
             cell_id_1 = data[0]
-            voltage_1 = int.from_bytes([data[1], data[2]], 'little') * 0.0001  # V
+            voltage_1 = int.from_bytes([data[1], data[2]], 'big') * 0.0001  # V
 
             # Second cell pair (if present)
             if len(data) >= 6:
                 cell_id_2 = data[3]
-                voltage_2 = int.from_bytes([data[4], data[5]], 'little') * 0.0001  # V
+                voltage_2 = int.from_bytes([data[4], data[5]], 'big') * 0.0001  # V
 
                 # Store in tracking dict
                 self.cell_voltages[cell_id_1] = voltage_1

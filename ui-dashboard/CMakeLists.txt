@@ -53,10 +53,14 @@ set(LV_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" CACHE STRING "" FORCE)
 include(FetchContent)
 FetchContent_Declare(
     lvgl
-    GIT_REPOSITORY https://github.com/lvgl/lvgl.git
-    GIT_TAG v8.3.11
+    URL https://github.com/lvgl/lvgl/archive/refs/tags/v8.3.11.tar.gz
+    URL_HASH SHA256=83b7325a4b78cbb19a39f3ac75346c8086926d7faeab5ff2d825c20da0bbdb46
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
+
+message(STATUS "Downloading LVGL 8.3.11 tarball (faster than git clone)...")
 FetchContent_MakeAvailable(lvgl)
+message(STATUS "LVGL download complete")
 
 # -------- Sources --------
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)

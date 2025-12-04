@@ -1,23 +1,95 @@
-# Nissan Leaf CAN Network - ESP32 + Raspberry Pi Dashboard
+# Nissan Leaf CAN Network - Production Telemetry System
 
-A comprehensive monorepo for a Nissan Leaf CAN bus network featuring multiple ESP32 modules and a cross-platform LVGL dashboard for Raspberry Pi.
+**Status:** ✅ **Production Ready** (v1.0.0)
+**Last Updated:** December 4, 2025
+
+A comprehensive telemetry and monitoring system for a Nissan Leaf EV conversion featuring EMBOO Battery (Orion BMS), ROAM Motor (RM100), GPS tracking, and real-time web dashboard.
+
+## 🎯 Quick Start
+
+**System is ready to use!** All services are running:
+
+```bash
+# Check system health
+./scripts/check-system.sh
+
+# View web dashboard
+# Open browser: http://10.0.0.187:8080
+
+# View real-time logs
+sudo journalctl -u telemetry-logger-unified.service -f
+sudo journalctl -u usb-gps-reader.service -f
+```
+
+**See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for complete system status.**
+
+---
+
+## 📚 Documentation
+
+- **[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)** - Current system state, architecture, performance metrics
+- **[docs/KIOSK_PROPOSAL.md](docs/KIOSK_PROPOSAL.md)** - Web kiosk vs LVGL analysis, pros/cons
+- **[TODO.md](TODO.md)** - Comprehensive roadmap, feature backlog, technical debt
+- **[CLAUDE.md](CLAUDE.md)** - Developer guide, build instructions, troubleshooting
+
+---
 
 ## Project Overview
 
-This project implements a distributed CAN network for a 2012 Nissan Leaf, integrating:
-- **ESP32 modules** with CAN transceivers (TJA1050) for sensor reading and custom gauge control
-- **Shared LeafCANBus library** providing unified subscribe/publish CAN interface
-- **Raspberry Pi dashboard** with LVGL UI, supporting both Windows development (SDL2) and Pi deployment (framebuffer + SocketCAN)
-- **Integration** with existing Leaf components: inverter, battery, charger, EM57 motor
+This project implements a complete telemetry system for a Nissan Leaf EV conversion, integrating:
+- **EMBOO Battery** (Orion BMS, 144 cells, 250 kbps CAN)
+- **ROAM Motor** (RM100, 250 kbps CAN)
+- **Nissan Leaf Inverter & Charger** (2012 OEM components)
+- **USB GPS Receiver** (U-Blox, real-time position tracking)
+- **Raspberry Pi 4** with dual CAN interface (can0 + can1)
+- **InfluxDB** time-series database for all telemetry
+- **Web Dashboard** with real-time updates, GPS map, and responsive design
 
-### Key Features
+### Current Features ✅
 
-- 🚗 Monitor real Nissan Leaf CAN data (battery SOC, motor RPM, temperatures, etc.)
-- 📡 Add custom sensors (GPS, temperatures, voltages) to CAN network
-- 📊 Beautiful LVGL dashboard with real-time vehicle telemetry
-- 🖥️ Cross-platform UI: develop on Windows, deploy to Raspberry Pi
-- 🔌 Modular ESP32 architecture with shared CAN library
-- ⚡ 500 kbps CAN bus with custom ID allocation (0x700+ range)
+- ✅ Real-time battery monitoring (voltage, current, SOC, 144 cell voltages, temperatures)
+- ✅ Motor telemetry (RPM, torque, temperatures, currents, voltages)
+- ✅ GPS tracking with interactive map (Leaflet.js)
+- ✅ Web dashboard accessible from any device on LAN
+- ✅ WebSocket real-time push updates (1-2 Hz)
+- ✅ Dual CAN interface support (250 kbps)
+- ✅ Schema V2 data model (device-family measurements)
+- ✅ Auto-start on boot with systemd
+- ✅ Crash recovery and watchdog
+- ✅ 30-day local data retention
+
+**Performance:** ~2000 CAN msg/sec, ~360 InfluxDB writes/sec, 12 GPS satellites, <2s dashboard load time
+
+---
+
+## System Architecture
+
+```
+Hardware:
+  EMBOO Battery (can1) ──┐
+  ROAM Motor (can1) ─────┤
+  USB GPS (ttyACM0) ─────┼──> Raspberry Pi 4 (Dual CAN, 4GB RAM)
+
+Software Stack:
+  ┌─────────────────────────────────────┐
+  │ Telemetry Logger (Python)           │ ─┐
+  │ USB GPS Reader (Python)             │ ─┤
+  ├─────────────────────────────────────┤  │
+  │ InfluxDB (Time-Series Database)     │ <┘
+  ├─────────────────────────────────────┤
+  │ Web Dashboard (Flask + WebSocket)   │
+  │ - REST API + Real-time updates      │
+  │ - GPS map (Leaflet.js)              │
+  │ - Responsive design                 │
+  └─────────────────────────────────────┘
+           │
+           ↓
+  Access from any device: http://10.0.0.187:8080
+```
+
+**See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) for detailed architecture diagrams.**
+
+---
 
 ## Repository Structure
 

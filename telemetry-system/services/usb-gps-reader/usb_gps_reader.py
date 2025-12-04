@@ -2,6 +2,7 @@
 """
 USB GPS Reader Service
 Reads NMEA data from U-Blox USB GPS and writes to InfluxDB
+Schema V2: Writes to "GPS" measurement
 """
 
 import os
@@ -9,6 +10,7 @@ import sys
 import serial
 import time
 import logging
+import socket
 from datetime import datetime
 from typing import Optional
 import pynmea2
@@ -33,6 +35,9 @@ class USBGPSReader:
         self.device_path = device_path
         self.serial_port: Optional[serial.Serial] = None
         self.running = False
+
+        # Get hostname for serial numbers (Schema V2)
+        self.hostname = socket.gethostname()
 
         # InfluxDB configuration (optional)
         self.influx_url = os.getenv("INFLUX_URL", "http://localhost:8086")
@@ -93,7 +98,7 @@ class USBGPSReader:
             return False
 
     def parse_nmea_sentence(self, line: str):
-        """Parse NMEA sentence and write to InfluxDB"""
+        """Parse NMEA sentence and write to InfluxDB (Schema V2 format)"""
         try:
             msg = pynmea2.parse(line)
             self.msg_count += 1
@@ -103,14 +108,18 @@ class USBGPSReader:
                 if msg.gps_qual > 0:  # Valid fix
                     self.valid_fix_count += 1
 
-                    point = Point("usb_gps_position") \
+                    # Schema V2: GPS measurement with device tags
+                    serial_number = f"{self.hostname}-GPS-USB"
+                    point = Point("GPS") \
+                        .tag("serial_number", serial_number) \
                         .tag("source", "usb_gps") \
+                        .tag("device_type", "U-Blox") \
                         .field("latitude", float(msg.latitude)) \
                         .field("longitude", float(msg.longitude)) \
                         .field("altitude", float(msg.altitude)) \
-                        .field("num_sats", int(msg.num_sats)) \
-                        .field("gps_qual", int(msg.gps_qual)) \
-                        .field("horizontal_dil", float(msg.horizontal_dil) if msg.horizontal_dil else 0)
+                        .field("satellites", int(msg.num_sats)) \
+                        .field("fix_quality", int(msg.gps_qual)) \
+                        .field("hdop", float(msg.horizontal_dil) if msg.horizontal_dil else 0.0)
 
                     if self.influx_enabled and self.write_api:
                         self.write_api.write(bucket=self.influx_bucket, record=point)
@@ -124,10 +133,13 @@ class USBGPSReader:
             # Process RMC (velocity) sentences
             elif isinstance(msg, pynmea2.types.talker.RMC):
                 if msg.status == 'A':  # Active/valid
-                    point = Point("usb_gps_velocity") \
+                    serial_number = f"{self.hostname}-GPS-USB"
+                    point = Point("GPS") \
+                        .tag("serial_number", serial_number) \
                         .tag("source", "usb_gps") \
-                        .field("speed_kmh", float(msg.spd_over_grnd * 1.852) if msg.spd_over_grnd else 0) \
-                        .field("true_course", float(msg.true_course) if msg.true_course else 0)
+                        .tag("device_type", "U-Blox") \
+                        .field("speed_kmh", float(msg.spd_over_grnd * 1.852) if msg.spd_over_grnd else 0.0) \
+                        .field("heading", float(msg.true_course) if msg.true_course else 0.0)
 
                     if self.influx_enabled and self.write_api:
                         self.write_api.write(bucket=self.influx_bucket, record=point)
