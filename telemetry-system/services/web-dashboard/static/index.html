@@ -232,6 +232,31 @@
                     <div class="metric-value"><span id="speed">--</span> <span class="metric-unit">km/h</span></div>
                 </div>
             </div>
+
+            <!-- GPS Section -->
+            <div class="card">
+                <h2>📍 GPS</h2>
+                <div class="metric-row">
+                    <span class="metric-row-label">Latitude</span>
+                    <span class="metric-row-value" id="latitude">--</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Longitude</span>
+                    <span class="metric-row-value" id="longitude">--</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Altitude</span>
+                    <span class="metric-row-value"><span id="altitude">--</span> m</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Satellites</span>
+                    <span class="metric-row-value" id="satellites">--</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Heading</span>
+                    <span class="metric-row-value"><span id="heading">--</span>°</span>
+                </div>
+            </div>
         </div>
 
         <!-- System Info -->
@@ -328,9 +353,37 @@
                 updateElement('inverterTemp', Math.round(data.inverter.temp_inverter || 0));
             }
 
-            // GPS/Speed data
-            if (data.gps_velocity) {
-                updateElement('speed', (data.gps_velocity.speed_kmh || 0).toFixed(1));
+            // GPS data
+            if (data.gps) {
+                const g = data.gps;
+
+                // Speed from GPS
+                if (g.speed_kmh !== undefined) {
+                    updateElement('speed', g.speed_kmh.toFixed(1));
+                }
+
+                // Position
+                if (g.latitude !== undefined) {
+                    updateElement('latitude', g.latitude.toFixed(6));
+                }
+                if (g.longitude !== undefined) {
+                    updateElement('longitude', g.longitude.toFixed(6));
+                }
+
+                // Altitude
+                if (g.altitude !== undefined) {
+                    updateElement('altitude', Math.round(g.altitude));
+                }
+
+                // Satellites
+                if (g.satellites !== undefined) {
+                    updateElement('satellites', g.satellites);
+                }
+
+                // Heading
+                if (g.heading !== undefined) {
+                    updateElement('heading', Math.round(g.heading));
+                }
             } else {
                 updateElement('speed', '--');
             }
