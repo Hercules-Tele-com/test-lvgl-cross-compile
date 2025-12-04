@@ -28,13 +28,23 @@ CAN_ID_GPS_TIME = 0x712
 CAN_ID_BODY_TEMP_SENSORS = 0x720
 CAN_ID_BODY_VOLTAGE = 0x721
 
-# Setup logging
+# Victron BMS Protocol CAN IDs (Little-Endian)
+CAN_ID_VICTRON_LIMITS = 0x351    # Charge/discharge voltage/current limits
+CAN_ID_VICTRON_SOC = 0x355       # State of Charge / State of Health
+CAN_ID_VICTRON_PACK = 0x356      # Battery voltage, current, temperature
+CAN_ID_VICTRON_ALARMS = 0x35E    # Alarms and warnings
+CAN_ID_VICTRON_CHARACTERISTICS = 0x35F  # Battery characteristics
+CAN_ID_VICTRON_CELLS_0 = 0x370   # Cell module 0 extrema
+CAN_ID_VICTRON_CELLS_1 = 0x371   # Cell module 1 extrema
+CAN_ID_VICTRON_CELLS_2 = 0x372   # Cell module 2 extrema
+CAN_ID_VICTRON_CELLS_3 = 0x373   # Cell module 3 extrema
+
+# Setup logging (systemd will capture stdout to journal)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/telemetry-logger.log')
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -43,60 +53,72 @@ logger = logging.getLogger(__name__)
 class CANTelemetryLogger:
     """CAN to InfluxDB telemetry logger"""
 
-    def __init__(self, can_interface: str = "can0"):
-        self.can_interface = can_interface
+    def __init__(self, can_interfaces: list = None):
+        if can_interfaces is None:
+            can_interfaces = ["can0"]
+        self.can_interfaces = can_interfaces
         self.running = False
-        self.bus: Optional[can.Bus] = None
+        self.buses: list = []  # List of CAN bus instances
         self.influx_client: Optional[InfluxDBClient] = None
         self.write_api = None
 
-        # Load configuration
+        # Load configuration (optional - can run without InfluxDB)
         self.influx_url = os.getenv("INFLUX_URL", "http://localhost:8086")
         self.influx_org = os.getenv("INFLUX_ORG", "leaf-telemetry")
         self.influx_bucket = os.getenv("INFLUX_BUCKET", "leaf-data")
         self.influx_token = os.getenv("INFLUX_LOGGER_TOKEN", "")
-
-        if not self.influx_token:
-            raise ValueError("INFLUX_LOGGER_TOKEN environment variable not set")
+        self.influx_enabled = bool(self.influx_token)
 
         # Statistics
         self.msg_count = 0
         self.write_count = 0
         self.error_count = 0
         self.last_stats_time = time.time()
+        self.can_id_counts = {}  # Track CAN IDs for debugging
 
     def init(self) -> bool:
         """Initialize CAN bus and InfluxDB connection"""
         try:
-            # Initialize CAN bus
-            logger.info(f"Initializing CAN interface: {self.can_interface}")
-            self.bus = can.Bus(
-                interface='socketcan',
-                channel=self.can_interface,
-                bitrate=500000
-            )
-            logger.info("CAN bus initialized successfully")
+            # Initialize CAN buses (required)
+            logger.info(f"Initializing CAN interfaces: {', '.join(self.can_interfaces)}")
+            for interface in self.can_interfaces:
+                bus = can.Bus(
+                    interface='socketcan',
+                    channel=interface,
+                    bitrate=500000
+                )
+                self.buses.append(bus)
+                logger.info(f"CAN bus {interface} initialized successfully")
 
-            # Initialize InfluxDB client
-            logger.info(f"Connecting to InfluxDB: {self.influx_url}")
-            self.influx_client = InfluxDBClient(
-                url=self.influx_url,
-                token=self.influx_token,
-                org=self.influx_org
-            )
-            self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
+            # Initialize InfluxDB client (optional)
+            if self.influx_enabled:
+                try:
+                    logger.info(f"Connecting to InfluxDB: {self.influx_url}")
+                    self.influx_client = InfluxDBClient(
+                        url=self.influx_url,
+                        token=self.influx_token,
+                        org=self.influx_org
+                    )
+                    self.write_api = self.influx_client.write_api(write_options=SYNCHRONOUS)
 
-            # Test connection
-            health = self.influx_client.health()
-            if health.status == "pass":
-                logger.info("InfluxDB connection successful")
-                return True
+                    # Test connection
+                    health = self.influx_client.health()
+                    if health.status == "pass":
+                        logger.info("InfluxDB connection successful")
+                    else:
+                        logger.warning(f"InfluxDB health check failed: {health.message}")
+                        self.influx_enabled = False
+                except Exception as e:
+                    logger.warning(f"InfluxDB connection failed: {e}")
+                    logger.info("Continuing without InfluxDB - CAN messages will be received but not logged")
+                    self.influx_enabled = False
             else:
-                logger.error(f"InfluxDB health check failed: {health.message}")
-                return False
+                logger.info("InfluxDB disabled (no token configured) - CAN messages will be received but not logged")
+
+            return True  # Success if CAN buses initialized
 
         except Exception as e:
-            logger.error(f"Initialization failed: {e}")
+            logger.error(f"CAN bus initialization failed: {e}")
             return False
 
     def parse_inverter_telemetry(self, data: bytes) -> Optional[Point]:
@@ -122,18 +144,27 @@ class CANTelemetryLogger:
         return point
 
     def parse_battery_soc(self, data: bytes) -> Optional[Point]:
-        """Parse battery SOC CAN message"""
+        """Parse battery SOC CAN message (0x1DB - Nissan Leaf)"""
         if len(data) < 8:
             return None
 
-        soc_percent = data[0]
-        gids = int.from_bytes(data[1:3], 'big')
-        pack_voltage = int.from_bytes(data[3:5], 'big') * 0.1  # V
-        pack_current = int.from_bytes(data[5:7], 'big', signed=True) * 0.1  # A
+        # Nissan Leaf 2012+ CAN format
+        soc_raw = data[0]  # SOC in 0.5% units (200 = 100%)
+        soc_percent = soc_raw / 2.0
+
+        gids = int.from_bytes(data[1:3], 'big')  # No scaling
+
+        # Voltage in 0.5V units
+        pack_voltage_raw = int.from_bytes(data[3:5], 'big')
+        pack_voltage = pack_voltage_raw * 0.5
+
+        # Current in 0.5A units, signed
+        pack_current_raw = int.from_bytes(data[5:7], 'big', signed=True)
+        pack_current = pack_current_raw * 0.5
 
         point = Point("battery_soc") \
             .tag("source", "leaf_ecu") \
-            .field("soc_percent", int(soc_percent)) \
+            .field("soc_percent", float(soc_percent)) \
             .field("gids", int(gids)) \
             .field("pack_voltage", float(pack_voltage)) \
             .field("pack_current", float(pack_current)) \
@@ -142,14 +173,27 @@ class CANTelemetryLogger:
         return point
 
     def parse_battery_temp(self, data: bytes) -> Optional[Point]:
-        """Parse battery temperature CAN message"""
+        """Parse battery temperature CAN message (0x1DC - Nissan Leaf)"""
         if len(data) < 4:
             return None
 
-        temp_max = int.from_bytes(data[0:1], 'big', signed=True)
-        temp_min = int.from_bytes(data[1:2], 'big', signed=True)
-        temp_avg = int.from_bytes(data[2:3], 'big', signed=True)
-        sensor_count = data[3]
+        # Nissan Leaf temperature format (unsigned bytes, direct Celsius values)
+        # Temperatures are typically in range 0-80°C
+        temp1 = data[0]  # Temperature sensor 1
+        temp2 = data[1]  # Temperature sensor 2
+        temp3 = data[2]  # Temperature sensor 3
+        temp4 = data[3]  # Temperature sensor 4
+
+        # Calculate statistics from available sensors
+        temps = [t for t in [temp1, temp2, temp3, temp4] if 0 < t < 100]  # Filter valid temps
+
+        if not temps:
+            return None
+
+        temp_max = max(temps)
+        temp_min = min(temps)
+        temp_avg = sum(temps) / len(temps)
+        sensor_count = len(temps)
 
         point = Point("battery_temp") \
             .tag("source", "leaf_ecu") \
@@ -291,19 +335,157 @@ class CANTelemetryLogger:
 
         return point
 
+    def parse_victron_limits(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS charge/discharge limits (0x351) - Little-Endian"""
+        if len(data) < 8:
+            return None
+
+        # Little-Endian decoding
+        charge_voltage_max = int.from_bytes(data[0:2], 'little') * 0.1  # V
+        charge_current_max = int.from_bytes(data[2:4], 'little', signed=True) * 0.1  # A
+        discharge_current_max = int.from_bytes(data[4:6], 'little', signed=True) * 0.1  # A
+        discharge_voltage_min = int.from_bytes(data[6:8], 'little') * 0.1  # V
+
+        point = Point("victron_limits") \
+            .tag("source", "victron_bms") \
+            .field("charge_voltage_max", float(charge_voltage_max)) \
+            .field("charge_current_max", float(charge_current_max)) \
+            .field("discharge_current_max", float(discharge_current_max)) \
+            .field("discharge_voltage_min", float(discharge_voltage_min))
+
+        return point
+
+    def parse_victron_soc(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS SOC/SOH (0x355) - Little-Endian"""
+        if len(data) < 4:
+            return None
+
+        # Little-Endian decoding - NO scaling (direct 0-100%)
+        soc = int.from_bytes(data[0:2], 'little')  # %
+        soh = int.from_bytes(data[2:4], 'little')  # %
+
+        point = Point("victron_soc") \
+            .tag("source", "victron_bms") \
+            .field("soc_percent", int(soc)) \
+            .field("soh_percent", int(soh))
+
+        return point
+
+    def parse_victron_pack(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS pack measurements (0x356) - Little-Endian"""
+        if len(data) < 6:
+            return None
+
+        # Little-Endian decoding
+        pack_voltage = int.from_bytes(data[0:2], 'little') * 0.01  # 0.01V units
+        pack_current = int.from_bytes(data[2:4], 'little', signed=True) * 0.1  # 0.1A units (negative = charge)
+        pack_temp = int.from_bytes(data[4:6], 'little') * 0.1  # 0.1°C units
+
+        point = Point("victron_pack") \
+            .tag("source", "victron_bms") \
+            .field("voltage", float(pack_voltage)) \
+            .field("current", float(pack_current)) \
+            .field("temperature", float(pack_temp)) \
+            .field("power_kw", float(pack_voltage * pack_current / 1000.0))
+
+        return point
+
+    def parse_victron_alarms(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS alarms (0x35E)"""
+        if len(data) < 8:
+            return None
+
+        alarms = data[0]  # Alarm flags
+        warnings = data[1]  # Warning flags
+        num_modules = int.from_bytes(data[2:4], 'little')
+
+        point = Point("victron_alarms") \
+            .tag("source", "victron_bms") \
+            .field("alarm_low_soc", int((alarms & 0x01) != 0)) \
+            .field("alarm_high_temp", int((alarms & 0x04) != 0)) \
+            .field("alarm_low_temp", int((alarms & 0x08) != 0)) \
+            .field("warning_low_soc", int((warnings & 0x01) != 0)) \
+            .field("warning_high_temp", int((warnings & 0x04) != 0)) \
+            .field("warning_low_temp", int((warnings & 0x08) != 0)) \
+            .field("num_modules", int(num_modules))
+
+        return point
+
+    def parse_victron_characteristics(self, data: bytes) -> Optional[Point]:
+        """Parse Victron BMS battery characteristics (0x35F) - Little-Endian"""
+        if len(data) < 8:
+            return None
+
+        # Little-Endian decoding
+        cell_type = data[0]  # 0=Unknown, 1=LiFePO4, 2=NMC
+        cell_quantity = data[1]
+        fw_major = data[2]
+        fw_minor = data[3]
+        capacity_ah = int.from_bytes(data[4:6], 'little')  # Ah (NO scaling)
+        manufacturer_id = int.from_bytes(data[6:8], 'little')
+
+        cell_type_names = {0: "Unknown", 1: "LiFePO4", 2: "NMC"}
+        cell_type_name = cell_type_names.get(cell_type, "Unknown")
+
+        point = Point("victron_characteristics") \
+            .tag("source", "victron_bms") \
+            .tag("cell_type", cell_type_name) \
+            .field("cell_type_code", int(cell_type)) \
+            .field("cell_quantity", int(cell_quantity)) \
+            .field("firmware_major", int(fw_major)) \
+            .field("firmware_minor", int(fw_minor)) \
+            .field("capacity_ah", int(capacity_ah)) \
+            .field("manufacturer_id", int(manufacturer_id))
+
+        return point
+
+    def parse_victron_cells(self, data: bytes, module_id: int) -> Optional[Point]:
+        """Parse Victron BMS cell extrema (0x370-0x373) - Little-Endian"""
+        if len(data) < 8:
+            return None
+
+        # Little-Endian decoding
+        max_temp = int.from_bytes(data[0:2], 'little')  # °C (NO scaling)
+        min_temp = int.from_bytes(data[2:4], 'little')  # °C (NO scaling)
+        max_voltage = int.from_bytes(data[4:6], 'little')  # mV
+        min_voltage = int.from_bytes(data[6:8], 'little')  # mV
+
+        # Skip if all zeros (empty module slot)
+        if max_temp == 0 and min_temp == 0 and max_voltage == 0 and min_voltage == 0:
+            return None
+
+        point = Point("victron_cells") \
+            .tag("source", "victron_bms") \
+            .tag("module_id", str(module_id)) \
+            .field("max_temp_c", int(max_temp)) \
+            .field("min_temp_c", int(min_temp)) \
+            .field("max_voltage_mv", int(max_voltage)) \
+            .field("min_voltage_mv", int(min_voltage)) \
+            .field("temp_delta_c", int(max_temp - min_temp)) \
+            .field("voltage_delta_mv", int(max_voltage - min_voltage))
+
+        return point
+
     def process_can_message(self, msg: can.Message):
         """Process a single CAN message and write to InfluxDB"""
         self.msg_count += 1
 
+        # Track CAN IDs for debugging
+        if msg.arbitration_id not in self.can_id_counts:
+            self.can_id_counts[msg.arbitration_id] = 0
+        self.can_id_counts[msg.arbitration_id] += 1
+
         point = None
 
         # Parse based on CAN ID
+        # Inverter telemetry enabled
         if msg.arbitration_id == CAN_ID_INVERTER_TELEMETRY:
             point = self.parse_inverter_telemetry(msg.data)
-        elif msg.arbitration_id == CAN_ID_BATTERY_SOC:
-            point = self.parse_battery_soc(msg.data)
-        elif msg.arbitration_id == CAN_ID_BATTERY_TEMP:
-            point = self.parse_battery_temp(msg.data)
+        # Leaf BMS battery data disabled (incorrect parsing - to be fixed later)
+        # elif msg.arbitration_id == CAN_ID_BATTERY_SOC:
+        #     point = self.parse_battery_soc(msg.data)
+        # elif msg.arbitration_id == CAN_ID_BATTERY_TEMP:
+        #     point = self.parse_battery_temp(msg.data)
         elif msg.arbitration_id == CAN_ID_VEHICLE_SPEED:
             point = self.parse_vehicle_speed(msg.data)
         elif msg.arbitration_id == CAN_ID_MOTOR_RPM:
@@ -318,9 +500,27 @@ class CANTelemetryLogger:
             point = self.parse_body_temp(msg.data)
         elif msg.arbitration_id == CAN_ID_BODY_VOLTAGE:
             point = self.parse_body_voltage(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_LIMITS:
+            point = self.parse_victron_limits(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_SOC:
+            point = self.parse_victron_soc(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_PACK:
+            point = self.parse_victron_pack(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_ALARMS:
+            point = self.parse_victron_alarms(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_CHARACTERISTICS:
+            point = self.parse_victron_characteristics(msg.data)
+        elif msg.arbitration_id == CAN_ID_VICTRON_CELLS_0:
+            point = self.parse_victron_cells(msg.data, 0)
+        elif msg.arbitration_id == CAN_ID_VICTRON_CELLS_1:
+            point = self.parse_victron_cells(msg.data, 1)
+        elif msg.arbitration_id == CAN_ID_VICTRON_CELLS_2:
+            point = self.parse_victron_cells(msg.data, 2)
+        elif msg.arbitration_id == CAN_ID_VICTRON_CELLS_3:
+            point = self.parse_victron_cells(msg.data, 3)
 
-        # Write to InfluxDB
-        if point:
+        # Write to InfluxDB (if enabled)
+        if point and self.influx_enabled and self.write_api:
             try:
                 self.write_api.write(bucket=self.influx_bucket, record=point)
                 self.write_count += 1
@@ -343,23 +543,29 @@ class CANTelemetryLogger:
                 f"{self.error_count} errors"
             )
 
+            # Log top CAN IDs seen (for debugging)
+            if hasattr(self, 'can_id_counts'):
+                top_ids = sorted(self.can_id_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                logger.info(f"Top CAN IDs: {[(hex(id), count) for id, count in top_ids]}")
+                self.can_id_counts = {}
+
             self.msg_count = 0
             self.write_count = 0
             self.error_count = 0
             self.last_stats_time = now
 
     def run(self):
-        """Main loop: read CAN messages and log to InfluxDB"""
+        """Main loop: read CAN messages from all interfaces and log to InfluxDB"""
         self.running = True
         logger.info("Starting telemetry logger main loop")
 
         try:
             while self.running:
-                # Read CAN message (blocking with timeout)
-                msg = self.bus.recv(timeout=1.0)
-
-                if msg:
-                    self.process_can_message(msg)
+                # Read from all CAN buses with short timeout
+                for bus in self.buses:
+                    msg = bus.recv(timeout=0.1)
+                    if msg:
+                        self.process_can_message(msg)
 
                 # Print periodic statistics
                 self.print_statistics()
@@ -376,12 +582,13 @@ class CANTelemetryLogger:
         logger.info("Cleaning up...")
         self.running = False
 
-        if self.write_api:
-            self.write_api.close()
-        if self.influx_client:
-            self.influx_client.close()
-        if self.bus:
-            self.bus.shutdown()
+        if self.influx_enabled:
+            if self.write_api:
+                self.write_api.close()
+            if self.influx_client:
+                self.influx_client.close()
+        for bus in self.buses:
+            bus.shutdown()
 
         logger.info("Cleanup complete")
 
@@ -393,13 +600,15 @@ class CANTelemetryLogger:
 
 def main():
     """Main entry point"""
-    can_interface = os.getenv("CAN_INTERFACE", "can0")
+    # Support multiple CAN interfaces (comma-separated)
+    can_interfaces_str = os.getenv("CAN_INTERFACES", "can0,can1")
+    can_interfaces = [iface.strip() for iface in can_interfaces_str.split(',')]
 
     logger.info("=== Nissan Leaf CAN Telemetry Logger ===")
-    logger.info(f"CAN Interface: {can_interface}")
+    logger.info(f"CAN Interfaces: {', '.join(can_interfaces)}")
 
     try:
-        logger_service = CANTelemetryLogger(can_interface)
+        logger_service = CANTelemetryLogger(can_interfaces)
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, logger_service.signal_handler)

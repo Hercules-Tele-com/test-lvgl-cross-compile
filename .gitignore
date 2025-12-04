@@ -68,6 +68,11 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
+
+# Environment files (contain secrets)
+*.env
+!*.env.template
 
 # OS
 Thumbs.db

@@ -7,7 +7,7 @@ Flask web server with REST API and WebSocket support for real-time vehicle monit
 import os
 import sys
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -16,6 +16,9 @@ from influxdb_client import InfluxDBClient
 from influxdb_client.client.query_api import QueryApi
 import threading
 import time
+import csv
+import io
+from trip_tracker import TripTracker
 
 # Setup logging
 logging.basicConfig(
@@ -36,17 +39,20 @@ INFLUX_ORG = os.getenv("INFLUX_ORG", "leaf-telemetry")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "leaf-data")
 INFLUX_TOKEN = os.getenv("INFLUX_WEB_TOKEN", "")
 
-if not INFLUX_TOKEN:
-    raise ValueError("INFLUX_WEB_TOKEN environment variable not set")
-
 # Global InfluxDB client
 influx_client: Optional[InfluxDBClient] = None
 query_api: Optional[QueryApi] = None
+trip_tracker: Optional[TripTracker] = None
 
 
 def init_influxdb():
-    """Initialize InfluxDB client"""
-    global influx_client, query_api
+    """Initialize InfluxDB client (optional - dashboard works without it)"""
+    global influx_client, query_api, trip_tracker
+
+    if not INFLUX_TOKEN:
+        logger.warning("INFLUX_WEB_TOKEN not set - dashboard will run without InfluxDB (no data logging)")
+        return False
+
     try:
         logger.info(f"Connecting to InfluxDB: {INFLUX_URL}")
         influx_client = InfluxDBClient(
@@ -55,6 +61,10 @@ def init_influxdb():
             org=INFLUX_ORG
         )
         query_api = influx_client.query_api()
+
+        # Initialize trip tracker
+        trip_tracker = TripTracker(influx_client, INFLUX_BUCKET, INFLUX_ORG)
+        logger.info("Trip tracker initialized")
 
         # Test connection
         health = influx_client.health()
@@ -66,11 +76,15 @@ def init_influxdb():
             return False
     except Exception as e:
         logger.error(f"Failed to connect to InfluxDB: {e}")
+        logger.warning("Dashboard will continue without InfluxDB")
         return False
 
 
 def query_latest_value(measurement: str, field: str, tag_filters: str = "") -> Optional[Dict[str, Any]]:
     """Query the latest value for a measurement/field"""
+    if not query_api:
+        return None
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -100,6 +114,9 @@ from(bucket: "{INFLUX_BUCKET}")
 
 def query_all_fields(measurement: str, tag_filters: str = "") -> Dict[str, Any]:
     """Query all fields for a measurement"""
+    if not query_api:
+        return {}
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -129,6 +146,9 @@ from(bucket: "{INFLUX_BUCKET}")
 
 def query_historical_data(measurement: str, field: str, duration: str = "24h", window: str = "5m") -> List[Dict[str, Any]]:
     """Query historical data with aggregation"""
+    if not query_api:
+        return []
+
     try:
         flux_query = f'''
 from(bucket: "{INFLUX_BUCKET}")
@@ -155,6 +175,67 @@ from(bucket: "{INFLUX_BUCKET}")
         return []
 
 
+def get_component_status() -> Dict[str, Any]:
+    """Check online/offline status of components based on last message time"""
+    if not query_api:
+        return {}
+
+    components = {
+        "leaf_inverter": {"measurement": "inverter", "name": "Leaf Inverter"},
+        "leaf_battery": {"measurement": "battery_soc", "name": "Leaf Battery ECU"},
+        "victron_bms": {"measurement": "victron_pack", "name": "Victron BMS"},
+        "usb_gps": {"measurement": "usb_gps_position", "name": "USB GPS"},
+        "can_gps": {"measurement": "gps_position", "name": "CAN GPS"},
+        "charger": {"measurement": "charger", "name": "Charger"}
+    }
+
+    status = {}
+    timeout_seconds = 5  # Consider offline if no message for 5 seconds
+
+    for comp_id, comp_info in components.items():
+        try:
+            # Query last message time
+            flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -1m)
+  |> filter(fn: (r) => r["_measurement"] == "{comp_info['measurement']}")
+  |> last()
+  |> limit(n: 1)
+            '''
+
+            tables = query_api.query(flux_query)
+
+            online = False
+            last_seen = None
+
+            for table in tables:
+                for record in table.records:
+                    last_time = record.get_time()
+                    if last_time:
+                        # Check if message is recent
+                        age_seconds = (datetime.now(timezone.utc) - last_time).total_seconds()
+                        online = age_seconds < timeout_seconds
+                        last_seen = last_time.isoformat()
+                    break
+                break
+
+            status[comp_id] = {
+                "name": comp_info['name'],
+                "online": online,
+                "last_seen": last_seen
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to check status for {comp_id}: {e}")
+            status[comp_id] = {
+                "name": comp_info['name'],
+                "online": False,
+                "last_seen": None
+            }
+
+    return status
+
+
 # ============================================================================
 # REST API ENDPOINTS
 # ============================================================================
@@ -170,18 +251,39 @@ def api_status():
     """Get current vehicle status (all metrics)"""
     try:
         # Query latest values for all measurements
+        components = get_component_status()
+
+        # Prefer USB GPS over CAN GPS if available
+        usb_gps_position = query_all_fields("usb_gps_position")
+        usb_gps_velocity = query_all_fields("usb_gps_velocity")
+        can_gps_position = query_all_fields("gps_position")
+        can_gps_velocity = query_all_fields("gps_velocity")
+
+        # Use USB GPS if online, otherwise fall back to CAN GPS
+        gps_position = usb_gps_position if usb_gps_position else can_gps_position
+        gps_velocity = usb_gps_velocity if usb_gps_velocity else can_gps_velocity
+
         status = {
             "timestamp": datetime.utcnow().isoformat(),
+            "components": components,
+            "gps_source": "usb" if usb_gps_position else ("can" if can_gps_position else "none"),
             "inverter": query_all_fields("inverter"),
             "battery_soc": query_all_fields("battery_soc"),
             "battery_temp": query_all_fields("battery_temp"),
             "vehicle_speed": query_all_fields("vehicle_speed"),
             "motor_rpm": query_all_fields("motor_rpm"),
             "charger": query_all_fields("charger"),
-            "gps_position": query_all_fields("gps_position"),
-            "gps_velocity": query_all_fields("gps_velocity"),
+            "gps_position": gps_position,
+            "gps_velocity": gps_velocity,
             "body_temp": query_all_fields("body_temp"),
-            "body_voltage": query_all_fields("body_voltage")
+            "body_voltage": query_all_fields("body_voltage"),
+            # Victron BMS data
+            "victron_pack": query_all_fields("victron_pack"),
+            "victron_soc": query_all_fields("victron_soc"),
+            "victron_limits": query_all_fields("victron_limits"),
+            "victron_characteristics": query_all_fields("victron_characteristics"),
+            "victron_alarms": query_all_fields("victron_alarms"),
+            "victron_cells": query_all_fields("victron_cells")
         }
 
         return jsonify(status)
@@ -257,6 +359,209 @@ def api_summary():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/victron/status')
+def api_victron_status():
+    """Get current Victron BMS status (all metrics)"""
+    try:
+        status = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "pack": query_all_fields("victron_pack"),
+            "soc": query_all_fields("victron_soc"),
+            "limits": query_all_fields("victron_limits"),
+            "characteristics": query_all_fields("victron_characteristics"),
+            "alarms": query_all_fields("victron_alarms")
+        }
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error in /api/victron/status: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/victron/cells')
+def api_victron_cells():
+    """Get cell extrema for all modules"""
+    try:
+        # Query cell data for all modules (0-3)
+        cells = {}
+        for module_id in range(4):
+            flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "victron_cells")
+  |> filter(fn: (r) => r["module_id"] == "{module_id}")
+  |> last()
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+            '''
+
+            tables = query_api.query(flux_query)
+            for table in tables:
+                for record in table.records:
+                    cells[f"module_{module_id}"] = {
+                        "max_temp_c": record.values.get("max_temp_c"),
+                        "min_temp_c": record.values.get("min_temp_c"),
+                        "max_voltage_mv": record.values.get("max_voltage_mv"),
+                        "min_voltage_mv": record.values.get("min_voltage_mv"),
+                        "temp_delta_c": record.values.get("temp_delta_c"),
+                        "voltage_delta_mv": record.values.get("voltage_delta_mv"),
+                        "time": record.get_time().isoformat()
+                    }
+
+        return jsonify({
+            "timestamp": datetime.utcnow().isoformat(),
+            "cells": cells
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/victron/cells: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/trips/current')
+def api_trips_current():
+    """Get current ongoing trip status"""
+    try:
+        if not trip_tracker:
+            return jsonify({"error": "Trip tracker not initialized"}), 500
+
+        current_trip = trip_tracker.get_current_trip_status()
+        return jsonify(current_trip if current_trip else {"status": "no_active_trip"})
+    except Exception as e:
+        logger.error(f"Error in /api/trips/current: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/trips/recent')
+def api_trips_recent():
+    """Get recent completed trips"""
+    try:
+        if not trip_tracker:
+            return jsonify({"error": "Trip tracker not initialized"}), 500
+
+        limit = int(request.args.get('limit', 10))
+        trips = trip_tracker.get_recent_trips(limit)
+        return jsonify({"trips": trips})
+    except Exception as e:
+        logger.error(f"Error in /api/trips/recent: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/gps/track')
+def api_gps_track():
+    """Get GPS track points for time range"""
+    try:
+        start = request.args.get('start', '-1h')
+        end = request.args.get('end', 'now()')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "gps_position")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+        track_points = []
+
+        for table in tables:
+            for record in table.records:
+                track_points.append({
+                    "time": record.get_time().isoformat(),
+                    "latitude": record.values.get("latitude"),
+                    "longitude": record.values.get("longitude")
+                })
+
+        return jsonify({"track_points": track_points})
+    except Exception as e:
+        logger.error(f"Error in /api/gps/track: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export/csv')
+def api_export_csv():
+    """Export data to CSV"""
+    try:
+        start = request.args.get('start', '-24h')
+        end = request.args.get('end', 'now()')
+        measurement = request.args.get('measurement', 'victron_pack')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = None
+
+        for table in tables:
+            for record in table.records:
+                if writer is None:
+                    # Create header from first record
+                    fieldnames = ['timestamp'] + [k for k in record.values.keys()
+                                                   if not k.startswith('_') and k not in ['result', 'table']]
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+
+                # Write data row
+                row = {'timestamp': record.get_time().isoformat()}
+                row.update({k: v for k, v in record.values.items()
+                            if not k.startswith('_') and k not in ['result', 'table']})
+                writer.writerow(row)
+
+        # Return CSV file
+        output.seek(0)
+        return output.getvalue(), 200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': f'attachment; filename={measurement}_export.csv'
+        }
+    except Exception as e:
+        logger.error(f"Error in /api/export/csv: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/export/json')
+def api_export_json():
+    """Export data to JSON"""
+    try:
+        start = request.args.get('start', '-24h')
+        end = request.args.get('end', 'now()')
+        measurement = request.args.get('measurement', 'victron_pack')
+
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: {start}, stop: {end})
+  |> filter(fn: (r) => r["_measurement"] == "{measurement}")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> sort(columns: ["_time"])
+        '''
+
+        tables = query_api.query(flux_query)
+        data_points = []
+
+        for table in tables:
+            for record in table.records:
+                point = {'timestamp': record.get_time().isoformat()}
+                point.update({k: v for k, v in record.values.items()
+                              if not k.startswith('_') and k not in ['result', 'table']})
+                data_points.append(point)
+
+        return jsonify({
+            "measurement": measurement,
+            "start": start,
+            "end": end,
+            "count": len(data_points),
+            "data": data_points
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/export/json: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================================
 # WEBSOCKET EVENTS
 # ============================================================================
@@ -292,8 +597,20 @@ def broadcast_realtime_data():
                 "motor_rpm": query_all_fields("motor_rpm"),
                 "inverter": query_all_fields("inverter"),
                 "charger": query_all_fields("charger"),
-                "battery_temp": query_all_fields("battery_temp")
+                "battery_temp": query_all_fields("battery_temp"),
+                # Victron BMS real-time data
+                "victron_pack": query_all_fields("victron_pack"),
+                "victron_soc": query_all_fields("victron_soc"),
+                "victron_limits": query_all_fields("victron_limits"),
+                "victron_characteristics": query_all_fields("victron_characteristics")
             }
+
+            # Update trip tracker with latest data
+            if trip_tracker and status.get("vehicle_speed") and status.get("victron_soc") and status.get("victron_pack"):
+                speed = status["vehicle_speed"].get("speed_kmh", 0.0)
+                soc = status["victron_soc"].get("soc_percent", 0)
+                power = status["victron_pack"].get("power_kw", 0.0)
+                trip_tracker.update(speed, soc, power)
 
             # Broadcast to all connected clients
             socketio.emit('realtime_update', status)
