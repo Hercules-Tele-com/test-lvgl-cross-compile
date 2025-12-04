@@ -232,11 +232,18 @@ echo "✓ All service files created with restart policies"
 echo ""
 
 # ============================================================================
-# Step 2: Reload systemd
+# Step 2: Remove problematic InfluxDB overrides
 # ============================================================================
-echo -e "${BLUE}[Step 2/7] Reloading systemd...${NC}"
+echo -e "${BLUE}[Step 2/7] Cleaning up InfluxDB configuration...${NC}"
+
+# Remove any override.conf that might be blocking InfluxDB from starting
+if [ -d "/etc/systemd/system/influxdb.service.d" ]; then
+    echo "Removing InfluxDB override (let service use defaults)"
+    sudo rm -rf /etc/systemd/system/influxdb.service.d
+fi
+
 sudo systemctl daemon-reload
-echo "✓ Systemd reloaded"
+echo "✓ InfluxDB configuration cleaned"
 echo ""
 
 # ============================================================================
@@ -278,10 +285,39 @@ echo "✓ X11 autostart configured"
 echo ""
 
 # ============================================================================
-# Step 6: Create system health monitor
+# Step 6: Configure sudo for health monitoring (passwordless)
 # ============================================================================
-echo -e "${BLUE}[Step 6/7] Creating system health monitor...${NC}"
+echo -e "${BLUE}[Step 6/7] Configuring sudo for health monitoring...${NC}"
 
+# Create sudoers file for passwordless service control
+cat > /tmp/emboo-services << 'EOFSUDO'
+# Allow emboo user to manage telemetry services without password
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl start influxdb.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl start telemetry-logger-unified.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl start usb-gps-reader.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl start web-dashboard.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl start dashboard-kiosk.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl restart influxdb.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl restart telemetry-logger-unified.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl restart usb-gps-reader.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl restart web-dashboard.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl restart dashboard-kiosk.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl stop influxdb.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl stop telemetry-logger-unified.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl stop usb-gps-reader.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl stop web-dashboard.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl stop dashboard-kiosk.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl status influxdb.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl status telemetry-logger-unified.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl status usb-gps-reader.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl status web-dashboard.service
+emboo ALL=(ALL) NOPASSWD: /bin/systemctl status dashboard-kiosk.service
+EOFSUDO
+
+sudo cp /tmp/emboo-services /etc/sudoers.d/emboo-services
+sudo chmod 0440 /etc/sudoers.d/emboo-services
+
+# Create health monitor script
 cat > "$PROJECT_DIR/kiosk/health-check.sh" << 'EOFHEALTH'
 #!/bin/bash
 # System Health Check - Ensures all services are running
@@ -298,7 +334,7 @@ SERVICES=(
 for service in "${SERVICES[@]}"; do
     if ! systemctl is-active --quiet "$service"; then
         echo "$(date): $service is not running, restarting..."
-        systemctl start "$service"
+        sudo systemctl start "$service"
     fi
 done
 EOFHEALTH
@@ -308,7 +344,7 @@ chmod +x "$PROJECT_DIR/kiosk/health-check.sh"
 # Add cron job for health monitoring
 (crontab -l 2>/dev/null | grep -v "health-check.sh"; echo "*/5 * * * * $PROJECT_DIR/kiosk/health-check.sh >> /tmp/health-check.log 2>&1") | crontab -
 
-echo "✓ Health monitor created (runs every 5 minutes via cron)"
+echo "✓ Health monitor configured with passwordless sudo"
 echo ""
 
 # ============================================================================
