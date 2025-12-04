@@ -42,8 +42,8 @@ cat > /tmp/telemetry-logger-unified.service << 'EOF'
 [Unit]
 Description=Unified CAN Telemetry Logger (can0 + can1)
 Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
-After=network-online.target influxdb.service
-Wants=network-online.target
+After=influxdb.service
+Wants=influxdb.service
 
 [Service]
 Type=simple
@@ -54,7 +54,7 @@ EnvironmentFile=-/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/c
 Environment=PYTHONUNBUFFERED=1
 Environment=CAN_INTERFACE=can0,can1
 
-# Wait for InfluxDB to be ready
+# Wait for InfluxDB to be ready (local service, no network needed)
 ExecStartPre=/bin/bash -c 'for i in {1..30}; do systemctl is-active --quiet influxdb.service && break || sleep 2; done'
 
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
@@ -86,8 +86,8 @@ cat > /tmp/usb-gps-reader.service << 'EOF'
 [Unit]
 Description=USB GPS Reader Service
 Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
-After=network-online.target influxdb.service
-Wants=network-online.target
+After=influxdb.service
+Wants=influxdb.service
 
 [Service]
 Type=simple
@@ -98,7 +98,7 @@ EnvironmentFile=-/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/c
 Environment=PYTHONUNBUFFERED=1
 Environment=GPS_DEVICE=/dev/ttyACM0
 
-# Wait for InfluxDB to be ready
+# Wait for InfluxDB to be ready (local service, no network needed)
 ExecStartPre=/bin/bash -c 'for i in {1..30}; do systemctl is-active --quiet influxdb.service && break || sleep 2; done'
 
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/usb-gps-reader/usb_gps_reader.py
@@ -130,8 +130,8 @@ cat > /tmp/web-dashboard.service << 'EOF'
 [Unit]
 Description=Nissan Leaf Web Dashboard
 Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
-After=network-online.target influxdb.service
-Wants=network-online.target
+After=influxdb.service
+Wants=influxdb.service
 
 [Service]
 Type=simple
@@ -141,9 +141,10 @@ WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/s
 EnvironmentFile=-/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
 Environment=WEB_PORT=8080
+Environment=WEB_HOST=0.0.0.0
 Environment=SECRET_KEY=change-this-in-production
 
-# Wait for InfluxDB to be ready
+# Wait for InfluxDB to be ready (local service, no network needed)
 ExecStartPre=/bin/bash -c 'for i in {1..30}; do systemctl is-active --quiet influxdb.service && break || sleep 2; done'
 
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/web-dashboard/app.py
@@ -247,18 +248,9 @@ echo "✓ InfluxDB configuration cleaned"
 echo ""
 
 # ============================================================================
-# Step 3: Enable network-online.target (required for InfluxDB to start)
+# Step 3: Enable all services
 # ============================================================================
-echo -e "${BLUE}[Step 3/7] Enabling network-online.target...${NC}"
-sudo systemctl enable systemd-networkd-wait-online.service
-sudo systemctl enable NetworkManager-wait-online.service 2>/dev/null || true
-echo "✓ Network-online target enabled"
-echo ""
-
-# ============================================================================
-# Step 4: Enable all services
-# ============================================================================
-echo -e "${BLUE}[Step 4/7] Enabling all services for autostart...${NC}"
+echo -e "${BLUE}[Step 3/7] Enabling all services for autostart...${NC}"
 sudo systemctl enable influxdb.service
 sudo systemctl enable telemetry-logger-unified.service
 sudo systemctl enable usb-gps-reader.service
@@ -268,17 +260,17 @@ echo "✓ All services enabled for autostart"
 echo ""
 
 # ============================================================================
-# Step 5: Configure boot to desktop
+# Step 4: Configure boot to desktop
 # ============================================================================
-echo -e "${BLUE}[Step 5/7] Configuring boot to desktop...${NC}"
+echo -e "${BLUE}[Step 4/7] Configuring boot to desktop...${NC}"
 sudo raspi-config nonint do_boot_behaviour B4
 echo "✓ Configured to boot to desktop with autologin"
 echo ""
 
 # ============================================================================
-# Step 6: Configure X11 autostart
+# Step 5: Configure X11 autostart
 # ============================================================================
-echo -e "${BLUE}[Step 6/7] Configuring X11 autostart...${NC}"
+echo -e "${BLUE}[Step 5/7] Configuring X11 autostart...${NC}"
 AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
 mkdir -p "$AUTOSTART_DIR"
 
@@ -294,9 +286,9 @@ echo "✓ X11 autostart configured"
 echo ""
 
 # ============================================================================
-# Step 7: Configure sudo for health monitoring (passwordless)
+# Step 6: Configure sudo for health monitoring (passwordless)
 # ============================================================================
-echo -e "${BLUE}[Step 7/7] Configuring sudo for health monitoring...${NC}"
+echo -e "${BLUE}[Step 6/7] Configuring sudo for health monitoring...${NC}"
 
 # Create sudoers file for passwordless service control
 cat > /tmp/emboo-services << 'EOFSUDO'
@@ -357,9 +349,9 @@ echo "✓ Health monitor configured with passwordless sudo"
 echo ""
 
 # ============================================================================
-# Step 8: Start all services now
+# Step 7: Start all services now
 # ============================================================================
-echo -e "${BLUE}[Step 8/8] Starting all services...${NC}"
+echo -e "${BLUE}[Step 7/7] Starting all services...${NC}"
 echo ""
 
 echo "Starting InfluxDB..."
