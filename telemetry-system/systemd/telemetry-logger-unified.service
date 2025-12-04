@@ -1,7 +1,8 @@
 [Unit]
-Description=Nissan Leaf CAN Telemetry Logger
+Description=Nissan Leaf CAN Telemetry Logger (Unified - can0 + can1)
 Documentation=https://github.com/your-repo/leaf-can-network
-After=network.target can-setup.service
+After=network.target can-setup.service influxdb.service
+Requires=can-setup.service influxdb.service
 Wants=network.target
 
 [Service]
@@ -11,8 +12,9 @@ Group=emboo
 WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger
 EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
-Environment=CAN_INTERFACE=can0
-Environment=CAN_BITRATE=250000
+# Monitor both CAN interfaces with independent bitrates
+Environment=CAN_INTERFACES=can0,can1
+Environment=CAN_BITRATES=250000,250000
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
 Restart=always
 RestartSec=10
