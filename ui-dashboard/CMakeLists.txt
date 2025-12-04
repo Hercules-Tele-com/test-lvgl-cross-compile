@@ -55,8 +55,13 @@ FetchContent_Declare(
     lvgl
     GIT_REPOSITORY https://github.com/lvgl/lvgl.git
     GIT_TAG v8.3.11
+    GIT_SHALLOW TRUE        # Only fetch the specific tag, not full history
+    GIT_PROGRESS TRUE       # Show download progress
 )
+
+message(STATUS "Downloading LVGL 8.3.11 (this may take a minute)...")
 FetchContent_MakeAvailable(lvgl)
+message(STATUS "LVGL download complete")
 
 # -------- Sources --------
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
