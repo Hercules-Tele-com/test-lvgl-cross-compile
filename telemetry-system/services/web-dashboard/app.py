@@ -182,6 +182,35 @@ from(bucket: "{INFLUX_BUCKET}")
         return {}
 
 
+def check_data_freshness(data: Dict[str, Any], threshold_seconds: int = 30) -> str:
+    """
+    Check if data is recent (within threshold_seconds)
+    Returns: 'online' (green), 'offline' (red), or 'unknown' (gray)
+    """
+    if not data or "time" not in data:
+        return "unknown"
+
+    try:
+        # Parse the timestamp
+        data_time = datetime.fromisoformat(data["time"].replace('Z', '+00:00'))
+
+        # Make sure we're comparing timezone-aware datetimes
+        if data_time.tzinfo is None:
+            data_time = data_time.replace(tzinfo=timezone.utc)
+
+        current_time = datetime.now(timezone.utc)
+        time_diff = (current_time - data_time).total_seconds()
+
+        # If data is within threshold, it's online
+        if time_diff <= threshold_seconds:
+            return "online"
+        else:
+            return "offline"
+    except Exception as e:
+        logger.error(f"Error checking data freshness: {e}")
+        return "unknown"
+
+
 def query_historical_data(measurement: str, field: str, duration: str = "24h", window: str = "5m") -> List[Dict[str, Any]]:
     """Query historical data with aggregation"""
     if not query_api:
@@ -292,14 +321,26 @@ def api_status():
         hostname = get_hostname()
 
         # Query latest values for all measurements (Schema V2)
+        battery_data = query_all_fields("Battery")
+        motor_data = query_all_fields("Motor")
+        inverter_data = query_all_fields("Inverter")
+        vehicle_data = query_all_fields("Vehicle")
+        gps_data = query_all_fields("GPS")
+
+        # Check data freshness for status indicators
         status = {
             "timestamp": datetime.utcnow().isoformat(),
             "hostname": hostname,
-            "battery": query_all_fields("Battery"),
-            "motor": query_all_fields("Motor"),
-            "inverter": query_all_fields("Inverter"),
-            "vehicle": query_all_fields("Vehicle"),
-            "gps": query_all_fields("GPS")
+            "battery": battery_data,
+            "motor": motor_data,
+            "inverter": inverter_data,
+            "vehicle": vehicle_data,
+            "gps": gps_data,
+            "status_indicators": {
+                "battery": check_data_freshness(battery_data, threshold_seconds=30),
+                "motor": check_data_freshness(motor_data, threshold_seconds=30),
+                "gps": check_data_freshness(gps_data, threshold_seconds=30)
+            }
         }
 
         return jsonify(status)
