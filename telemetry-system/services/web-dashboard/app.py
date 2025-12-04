@@ -69,6 +69,31 @@ def init_influxdb():
         return False
 
 
+def get_hostname() -> str:
+    """Get vehicle hostname from InfluxDB serial_number tag"""
+    try:
+        flux_query = f'''
+from(bucket: "{INFLUX_BUCKET}")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "Battery" or r["_measurement"] == "Motor" or r["_measurement"] == "Vehicle")
+  |> limit(n: 1)
+  |> keep(columns: ["serial_number"])
+        '''
+
+        tables = query_api.query(flux_query)
+
+        for table in tables:
+            for record in table.records:
+                serial_number = record.values.get("serial_number", "")
+                if serial_number and "-" in serial_number:
+                    return serial_number.split("-")[0]
+
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Failed to get hostname: {e}")
+        return "Unknown"
+
+
 def query_latest_value(measurement: str, field: str, tag_filters: str = "") -> Optional[Dict[str, Any]]:
     """Query the latest value for a measurement/field"""
     try:
@@ -115,7 +140,7 @@ from(bucket: "{INFLUX_BUCKET}")
         for table in tables:
             for record in table.records:
                 result = {"time": record.get_time().isoformat()}
-                # Add all fields
+                # Add all fields and tags
                 for key, value in record.values.items():
                     if not key.startswith("_") and key not in ["result", "table", "time"]:
                         result[key] = value
@@ -167,21 +192,20 @@ def index():
 
 @app.route('/api/status')
 def api_status():
-    """Get current vehicle status (all metrics)"""
+    """Get current vehicle status (all metrics) - Schema V2"""
     try:
-        # Query latest values for all measurements
+        # Get hostname
+        hostname = get_hostname()
+
+        # Query latest values for all measurements (Schema V2)
         status = {
             "timestamp": datetime.utcnow().isoformat(),
-            "inverter": query_all_fields("inverter"),
-            "battery_soc": query_all_fields("battery_soc"),
-            "battery_temp": query_all_fields("battery_temp"),
-            "vehicle_speed": query_all_fields("vehicle_speed"),
-            "motor_rpm": query_all_fields("motor_rpm"),
-            "charger": query_all_fields("charger"),
-            "gps_position": query_all_fields("gps_position"),
-            "gps_velocity": query_all_fields("gps_velocity"),
-            "body_temp": query_all_fields("body_temp"),
-            "body_voltage": query_all_fields("body_voltage")
+            "hostname": hostname,
+            "battery": query_all_fields("Battery"),
+            "motor": query_all_fields("Motor"),
+            "inverter": query_all_fields("Inverter"),
+            "vehicle": query_all_fields("Vehicle"),
+            "gps": query_all_fields("GPS")
         }
 
         return jsonify(status)
@@ -213,43 +237,52 @@ def api_historical(measurement: str, field: str):
 
 @app.route('/api/summary')
 def api_summary():
-    """Get quick summary of key metrics"""
+    """Get quick summary of key metrics - Schema V2"""
     try:
         summary = {}
 
-        # Battery SOC
-        battery_soc = query_all_fields("battery_soc")
-        if battery_soc:
+        # Get hostname
+        summary["hostname"] = get_hostname()
+
+        # Battery data (Schema V2: all in Battery measurement)
+        battery = query_all_fields("Battery")
+        if battery:
             summary["battery"] = {
-                "soc_percent": battery_soc.get("soc_percent"),
-                "voltage": battery_soc.get("pack_voltage"),
-                "current": battery_soc.get("pack_current")
+                "soc_percent": battery.get("soc_percent"),
+                "voltage": battery.get("voltage"),
+                "current": battery.get("current"),
+                "power_kw": battery.get("power_kw"),
+                "temp_avg": battery.get("temp_avg"),
+                "charging": battery.get("charging_flag") == 1
             }
 
-        # Speed
-        speed = query_all_fields("vehicle_speed")
-        if speed:
-            summary["speed_kmh"] = speed.get("speed_kmh")
+        # Speed (Schema V2: in Vehicle measurement)
+        vehicle = query_all_fields("Vehicle")
+        if vehicle:
+            summary["speed_kmh"] = vehicle.get("speed_kmh")
+            summary["speed_mph"] = vehicle.get("speed_mph")
 
-        # Motor
-        motor = query_all_fields("motor_rpm")
+        # Motor (Schema V2: in Motor measurement)
+        motor = query_all_fields("Motor")
         if motor:
             summary["motor_rpm"] = motor.get("rpm")
+            summary["motor_torque"] = motor.get("torque_actual")
 
-        # Charging
-        charger = query_all_fields("charger")
-        if charger:
-            summary["charging"] = charger.get("charging_flag") == 1
-
-        # Temperatures
-        battery_temp = query_all_fields("battery_temp")
-        if battery_temp:
-            summary["battery_temp_avg"] = battery_temp.get("temp_avg")
-
-        inverter = query_all_fields("inverter")
+        # Inverter/Motor temps (Schema V2: in Inverter measurement)
+        inverter = query_all_fields("Inverter")
         if inverter:
             summary["inverter_temp"] = inverter.get("temp_inverter")
             summary["motor_temp"] = inverter.get("temp_motor")
+
+        # GPS (Schema V2: in GPS measurement)
+        gps = query_all_fields("GPS")
+        if gps:
+            summary["gps"] = {
+                "latitude": gps.get("latitude"),
+                "longitude": gps.get("longitude"),
+                "speed_kmh": gps.get("speed_kmh"),
+                "heading": gps.get("heading")
+            }
 
         return jsonify(summary)
     except Exception as e:
@@ -281,18 +314,18 @@ def handle_subscribe():
 
 
 def broadcast_realtime_data():
-    """Broadcast real-time data to all connected clients"""
+    """Broadcast real-time data to all connected clients - Schema V2"""
     while True:
         try:
-            # Query current status
+            # Query current status (Schema V2)
             status = {
                 "timestamp": datetime.utcnow().isoformat(),
-                "battery_soc": query_all_fields("battery_soc"),
-                "vehicle_speed": query_all_fields("vehicle_speed"),
-                "motor_rpm": query_all_fields("motor_rpm"),
-                "inverter": query_all_fields("inverter"),
-                "charger": query_all_fields("charger"),
-                "battery_temp": query_all_fields("battery_temp")
+                "hostname": get_hostname(),
+                "battery": query_all_fields("Battery"),
+                "motor": query_all_fields("Motor"),
+                "inverter": query_all_fields("Inverter"),
+                "vehicle": query_all_fields("Vehicle"),
+                "gps": query_all_fields("GPS")
             }
 
             # Broadcast to all connected clients
