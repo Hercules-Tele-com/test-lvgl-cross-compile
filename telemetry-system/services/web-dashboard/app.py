@@ -326,6 +326,7 @@ def api_status():
         inverter_data = query_all_fields("Inverter")
         vehicle_data = query_all_fields("Vehicle")
         gps_data = query_all_fields("GPS")
+        charger_data = query_all_fields("Charger")
 
         # Check data freshness for status indicators
         status = {
@@ -336,10 +337,12 @@ def api_status():
             "inverter": inverter_data,
             "vehicle": vehicle_data,
             "gps": gps_data,
+            "charger": charger_data,
             "status_indicators": {
                 "battery": check_data_freshness(battery_data, threshold_seconds=30),
                 "motor": check_data_freshness(motor_data, threshold_seconds=30),
-                "gps": check_data_freshness(gps_data, threshold_seconds=30)
+                "gps": check_data_freshness(gps_data, threshold_seconds=30),
+                "charger": check_data_freshness(charger_data, threshold_seconds=30)
             }
         }
 

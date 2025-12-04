@@ -272,6 +272,27 @@
                 </div>
             </div>
 
+            <!-- Charger Section (hidden by default, shown when charger is online) -->
+            <div class="card" id="charger-panel" style="display: none;">
+                <h2>🔌 Elcon Charger</h2>
+                <div class="metric-row">
+                    <span class="metric-row-label">Output Voltage</span>
+                    <span class="metric-row-value"><span id="charger-voltage">--</span> V</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Output Current</span>
+                    <span class="metric-row-value"><span id="charger-current">--</span> A</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Power</span>
+                    <span class="metric-row-value"><span id="charger-power">--</span> kW</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Status</span>
+                    <span class="metric-row-value" id="charger-status">--</span>
+                </div>
+            </div>
+
             <!-- Motor Section -->
             <div class="card">
                 <h2>🔧 Motor</h2>
@@ -496,6 +517,37 @@
                 }
             } else {
                 updateElement('speed', '--');
+            }
+
+            // Charger data (Elcon charger)
+            const chargerPanel = document.getElementById('charger-panel');
+            if (data.charger && data.status_indicators && data.status_indicators.charger === 'online') {
+                // Charger is online - show panel and update data
+                if (chargerPanel) chargerPanel.style.display = 'block';
+
+                const c = data.charger;
+                updateElement('charger-voltage', (c.output_voltage || 0).toFixed(1));
+                updateElement('charger-current', (c.output_current || 0).toFixed(1));
+                updateElement('charger-power', (c.charge_power_kw || 0).toFixed(2));
+
+                // Status text based on charging state and flags
+                let statusText = '--';
+                if (c.charging_state === 1) {
+                    statusText = '🔋 Charging';
+                } else {
+                    statusText = '⏸️ Idle';
+                }
+
+                // Add error indicators if any faults
+                if (c.hw_status === 1) statusText += ' [HW Fault]';
+                if (c.temp_status === 1) statusText += ' [Over-Temp]';
+                if (c.input_voltage_status === 1) statusText += ' [Input Fault]';
+                if (c.comm_status === 1) statusText += ' [Comm Fault]';
+
+                updateElement('charger-status', statusText);
+            } else {
+                // Charger is offline - hide panel
+                if (chargerPanel) chargerPanel.style.display = 'none';
             }
 
             // System info
