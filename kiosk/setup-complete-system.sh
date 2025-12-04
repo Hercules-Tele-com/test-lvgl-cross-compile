@@ -247,9 +247,18 @@ echo "✓ InfluxDB configuration cleaned"
 echo ""
 
 # ============================================================================
-# Step 3: Enable all services
+# Step 3: Enable network-online.target (required for InfluxDB to start)
 # ============================================================================
-echo -e "${BLUE}[Step 3/7] Enabling all services for autostart...${NC}"
+echo -e "${BLUE}[Step 3/7] Enabling network-online.target...${NC}"
+sudo systemctl enable systemd-networkd-wait-online.service
+sudo systemctl enable NetworkManager-wait-online.service 2>/dev/null || true
+echo "✓ Network-online target enabled"
+echo ""
+
+# ============================================================================
+# Step 4: Enable all services
+# ============================================================================
+echo -e "${BLUE}[Step 4/7] Enabling all services for autostart...${NC}"
 sudo systemctl enable influxdb.service
 sudo systemctl enable telemetry-logger-unified.service
 sudo systemctl enable usb-gps-reader.service
@@ -259,17 +268,17 @@ echo "✓ All services enabled for autostart"
 echo ""
 
 # ============================================================================
-# Step 4: Configure boot to desktop
+# Step 5: Configure boot to desktop
 # ============================================================================
-echo -e "${BLUE}[Step 4/7] Configuring boot to desktop...${NC}"
+echo -e "${BLUE}[Step 5/7] Configuring boot to desktop...${NC}"
 sudo raspi-config nonint do_boot_behaviour B4
 echo "✓ Configured to boot to desktop with autologin"
 echo ""
 
 # ============================================================================
-# Step 5: Configure X11 autostart
+# Step 6: Configure X11 autostart
 # ============================================================================
-echo -e "${BLUE}[Step 5/7] Configuring X11 autostart...${NC}"
+echo -e "${BLUE}[Step 6/7] Configuring X11 autostart...${NC}"
 AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
 mkdir -p "$AUTOSTART_DIR"
 
@@ -285,9 +294,9 @@ echo "✓ X11 autostart configured"
 echo ""
 
 # ============================================================================
-# Step 6: Configure sudo for health monitoring (passwordless)
+# Step 7: Configure sudo for health monitoring (passwordless)
 # ============================================================================
-echo -e "${BLUE}[Step 6/7] Configuring sudo for health monitoring...${NC}"
+echo -e "${BLUE}[Step 7/7] Configuring sudo for health monitoring...${NC}"
 
 # Create sudoers file for passwordless service control
 cat > /tmp/emboo-services << 'EOFSUDO'
@@ -348,9 +357,9 @@ echo "✓ Health monitor configured with passwordless sudo"
 echo ""
 
 # ============================================================================
-# Step 7: Start all services now
+# Step 8: Start all services now
 # ============================================================================
-echo -e "${BLUE}[Step 7/7] Starting all services...${NC}"
+echo -e "${BLUE}[Step 8/8] Starting all services...${NC}"
 echo ""
 
 echo "Starting InfluxDB..."
