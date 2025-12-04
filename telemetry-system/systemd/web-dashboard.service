@@ -1,8 +1,7 @@
 [Unit]
 Description=Nissan Leaf Web Dashboard
 Documentation=https://github.com/your-repo/leaf-can-network
-After=network.target influxdb.service
-Requires=influxdb.service
+After=network.target
 Wants=network.target
 
 [Service]

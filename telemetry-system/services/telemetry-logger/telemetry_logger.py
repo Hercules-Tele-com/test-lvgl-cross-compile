@@ -51,13 +51,23 @@ CAN_ID_GPS_TIME = 0x712
 CAN_ID_BODY_TEMP_SENSORS = 0x720
 CAN_ID_BODY_VOLTAGE = 0x721
 
-# Setup logging
+# Victron BMS Protocol CAN IDs (Little-Endian)
+CAN_ID_VICTRON_LIMITS = 0x351    # Charge/discharge voltage/current limits
+CAN_ID_VICTRON_SOC = 0x355       # State of Charge / State of Health
+CAN_ID_VICTRON_PACK = 0x356      # Battery voltage, current, temperature
+CAN_ID_VICTRON_ALARMS = 0x35E    # Alarms and warnings
+CAN_ID_VICTRON_CHARACTERISTICS = 0x35F  # Battery characteristics
+CAN_ID_VICTRON_CELLS_0 = 0x370   # Cell module 0 extrema
+CAN_ID_VICTRON_CELLS_1 = 0x371   # Cell module 1 extrema
+CAN_ID_VICTRON_CELLS_2 = 0x372   # Cell module 2 extrema
+CAN_ID_VICTRON_CELLS_3 = 0x373   # Cell module 3 extrema
+
+# Setup logging (systemd will capture stdout to journal)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/telemetry-logger.log')
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -72,14 +82,12 @@ class CANTelemetryLogger:
         self.influx_client: Optional[InfluxDBClient] = None
         self.write_api = None
 
-        # Load configuration
+        # Load configuration (optional - can run without InfluxDB)
         self.influx_url = os.getenv("INFLUX_URL", "http://localhost:8086")
         self.influx_org = os.getenv("INFLUX_ORG", "leaf-telemetry")
         self.influx_bucket = os.getenv("INFLUX_BUCKET", "leaf-data")
         self.influx_token = os.getenv("INFLUX_LOGGER_TOKEN", "")
-
-        if not self.influx_token:
-            raise ValueError("INFLUX_LOGGER_TOKEN environment variable not set")
+        self.influx_enabled = bool(self.influx_token)
 
         # Parse CAN interface configuration
         # Format: CAN_INTERFACES=can0,can1  CAN_BITRATES=250000,250000
@@ -162,11 +170,12 @@ class CANTelemetryLogger:
                 logger.info("InfluxDB connection successful")
                 return True
             else:
-                logger.error(f"InfluxDB health check failed: {health.message}")
-                return False
+                logger.info("InfluxDB disabled (no token configured) - CAN messages will be received but not logged")
+
+            return True  # Success if CAN buses initialized
 
         except Exception as e:
-            logger.error(f"Initialization failed: {e}")
+            logger.error(f"CAN bus initialization failed: {e}")
             return False
 
     def parse_inverter_telemetry(self, data: bytes) -> Optional[Point]:
@@ -198,10 +207,19 @@ class CANTelemetryLogger:
         if len(data) < 8:
             return None
 
-        soc_percent = data[0]
-        gids = int.from_bytes(data[1:3], 'big')
-        pack_voltage = int.from_bytes(data[3:5], 'big') * 0.1  # V
-        pack_current = int.from_bytes(data[5:7], 'big', signed=True) * 0.1  # A
+        # Nissan Leaf 2012+ CAN format
+        soc_raw = data[0]  # SOC in 0.5% units (200 = 100%)
+        soc_percent = soc_raw / 2.0
+
+        gids = int.from_bytes(data[1:3], 'big')  # No scaling
+
+        # Voltage in 0.5V units
+        pack_voltage_raw = int.from_bytes(data[3:5], 'big')
+        pack_voltage = pack_voltage_raw * 0.5
+
+        # Current in 0.5A units, signed
+        pack_current_raw = int.from_bytes(data[5:7], 'big', signed=True)
+        pack_current = pack_current_raw * 0.5
 
         point = Point("Battery") \
             .tag("serial_number", self._get_serial_number("Battery", "Leaf24kWh")) \
@@ -220,10 +238,23 @@ class CANTelemetryLogger:
         if len(data) < 4:
             return None
 
-        temp_max = int.from_bytes(data[0:1], 'big', signed=True)
-        temp_min = int.from_bytes(data[1:2], 'big', signed=True)
-        temp_avg = int.from_bytes(data[2:3], 'big', signed=True)
-        sensor_count = data[3]
+        # Nissan Leaf temperature format (unsigned bytes, direct Celsius values)
+        # Temperatures are typically in range 0-80°C
+        temp1 = data[0]  # Temperature sensor 1
+        temp2 = data[1]  # Temperature sensor 2
+        temp3 = data[2]  # Temperature sensor 3
+        temp4 = data[3]  # Temperature sensor 4
+
+        # Calculate statistics from available sensors
+        temps = [t for t in [temp1, temp2, temp3, temp4] if 0 < t < 100]  # Filter valid temps
+
+        if not temps:
+            return None
+
+        temp_max = max(temps)
+        temp_min = min(temps)
+        temp_avg = sum(temps) / len(temps)
+        sensor_count = len(temps)
 
         point = Point("Battery") \
             .tag("serial_number", self._get_serial_number("Battery", "Leaf24kWh")) \
@@ -669,15 +700,22 @@ class CANTelemetryLogger:
         if source_interface in self.stats:
             self.stats[source_interface]['msg_count'] += 1
 
+        # Track CAN IDs for debugging
+        if msg.arbitration_id not in self.can_id_counts:
+            self.can_id_counts[msg.arbitration_id] = 0
+        self.can_id_counts[msg.arbitration_id] += 1
+
         point = None
 
         # Parse based on CAN ID
+        # Inverter telemetry enabled
         if msg.arbitration_id == CAN_ID_INVERTER_TELEMETRY:
             point = self.parse_inverter_telemetry(msg.data)
-        elif msg.arbitration_id == CAN_ID_BATTERY_SOC:
-            point = self.parse_battery_soc(msg.data)
-        elif msg.arbitration_id == CAN_ID_BATTERY_TEMP:
-            point = self.parse_battery_temp(msg.data)
+        # Leaf BMS battery data disabled (incorrect parsing - to be fixed later)
+        # elif msg.arbitration_id == CAN_ID_BATTERY_SOC:
+        #     point = self.parse_battery_soc(msg.data)
+        # elif msg.arbitration_id == CAN_ID_BATTERY_TEMP:
+        #     point = self.parse_battery_temp(msg.data)
         elif msg.arbitration_id == CAN_ID_VEHICLE_SPEED:
             point = self.parse_vehicle_speed(msg.data)
         elif msg.arbitration_id == CAN_ID_MOTOR_RPM:

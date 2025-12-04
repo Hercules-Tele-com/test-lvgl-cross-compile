@@ -1,0 +1,28 @@
+[Unit]
+Description=USB GPS Reader Service
+Documentation=https://github.com/your-repo/leaf-can-network
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=emboo
+Group=emboo
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/usb-gps-reader
+EnvironmentFile=-/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
+Environment=PYTHONUNBUFFERED=1
+Environment=GPS_DEVICE=/dev/ttyACM0
+ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/usb-gps-reader/usb_gps_reader.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

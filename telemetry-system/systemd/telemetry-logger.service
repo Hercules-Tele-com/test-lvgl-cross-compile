@@ -1,8 +1,7 @@
 [Unit]
 Description=Nissan Leaf CAN Telemetry Logger
 Documentation=https://github.com/your-repo/leaf-can-network
-After=network.target can-setup.service influxdb.service
-Requires=can-setup.service influxdb.service
+After=network.target can-setup.service
 Wants=network.target
 
 [Service]

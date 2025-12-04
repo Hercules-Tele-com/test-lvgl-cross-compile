@@ -1,9 +1,8 @@
 [Unit]
 Description=InfluxDB Cloud Sync Service
 Documentation=https://github.com/your-repo/leaf-can-network
-After=network-online.target influxdb.service telemetry-logger.service
+After=network-online.target telemetry-logger.service
 Wants=network-online.target
-Requires=influxdb.service
 
 [Service]
 Type=simple

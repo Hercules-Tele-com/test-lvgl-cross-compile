@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nissan Leaf Dashboard</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <div class="container">
@@ -23,72 +26,78 @@
         <nav class="tabs">
             <button class="tab active" data-tab="dashboard">Dashboard</button>
             <button class="tab" data-tab="history">Historical Data</button>
+            <button class="tab" data-tab="trips">Trips</button>
+            <button class="tab" data-tab="map">GPS Map</button>
+            <button class="tab" data-tab="export">Export Data</button>
             <button class="tab" data-tab="details">Details</button>
         </nav>
 
         <!-- Dashboard Tab -->
         <div id="dashboard" class="tab-content active">
-            <!-- Main Metrics Row -->
-            <div class="metrics-grid">
-                <!-- Speed Gauge -->
-                <div class="metric-card large">
-                    <h3>Speed</h3>
-                    <div class="gauge-container">
-                        <svg viewBox="0 0 200 120" class="gauge">
-                            <path d="M 20 100 A 80 80 0 0 1 180 100"
-                                  fill="none" stroke="#2a2a2a" stroke-width="15" />
-                            <path id="speedArc" d="M 20 100 A 80 80 0 0 1 180 100"
-                                  fill="none" stroke="#00ff88" stroke-width="15"
-                                  stroke-dasharray="251.2" stroke-dashoffset="251.2" />
-                        </svg>
-                        <div class="gauge-value">
-                            <span id="speedValue" class="value-large">0</span>
-                            <span class="value-unit">km/h</span>
-                        </div>
-                    </div>
+            <!-- Component Status Bar -->
+            <div class="component-status-bar">
+                <div class="component-status" id="statusVictronBms">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Victron BMS</span>
                 </div>
+                <div class="component-status" id="statusUsbGps">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">USB GPS</span>
+                </div>
+                <div class="component-status" id="statusCanGps">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">CAN GPS</span>
+                </div>
+                <div class="component-status" id="statusCharger">
+                    <span class="status-indicator"></span>
+                    <span class="component-name">Charger</span>
+                </div>
+            </div>
 
-                <!-- Battery SOC -->
-                <div class="metric-card large battery">
-                    <h3>Battery</h3>
-                    <div class="battery-display">
-                        <div class="battery-icon">
-                            <div class="battery-level" id="batteryLevel"></div>
-                            <div class="battery-terminal"></div>
+            <!-- Simplified Main Dashboard -->
+            <div class="main-dashboard">
+                <!-- Battery Section (Victron Only) -->
+                <div class="dashboard-section battery-section">
+                    <h2>⚡ Battery (Victron BMS)</h2>
+
+                    <!-- Victron Battery View -->
+                    <div id="victronBatteryView" class="section-content battery-view active">
+                        <div class="primary-metric">
+                            <div class="metric-value-large" id="victronSocValue">--</div>
+                            <div class="metric-unit">% SOC</div>
                         </div>
-                        <div class="battery-info">
-                            <div class="value-large" id="socValue">--</div>
-                            <div class="value-unit">% SOC</div>
-                            <div class="value-small">
-                                <span id="batteryVoltage">--</span> V
-                                <span id="batteryCurrent">--</span> A
+                        <div class="secondary-metrics">
+                            <div class="metric-row">
+                                <span class="metric-label">Voltage:</span>
+                                <span class="metric-value" id="victronVoltageValue">--</span>
+                                <span class="metric-unit">V</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Current:</span>
+                                <span class="metric-value" id="victronCurrentValue">--</span>
+                                <span class="metric-unit">A</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Power:</span>
+                                <span class="metric-value" id="victronPowerValue">--</span>
+                                <span class="metric-unit">kW</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Temperature:</span>
+                                <span class="metric-value" id="victronTempValue">--</span>
+                                <span class="metric-unit">°C</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Cell Voltage:</span>
+                                <span class="metric-value" id="victronCellVoltageRange">--</span>
+                                <span class="metric-unit">mV</span>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- Motor RPM -->
-                <div class="metric-card">
-                    <h3>Motor</h3>
-                    <div class="value-display">
-                        <div class="value-large" id="motorRpm">0</div>
-                        <div class="value-unit">RPM</div>
-                        <div class="value-small" id="motorDirection">--</div>
-                    </div>
-                </div>
-
-                <!-- Power -->
-                <div class="metric-card">
-                    <h3>Power</h3>
-                    <div class="value-display">
-                        <div class="value-large" id="powerValue">0.0</div>
-                        <div class="value-unit">kW</div>
-                        <div class="value-small" id="powerType">--</div>
-                    </div>
-                </div>
             </div>
 
-            <!-- Temperature Row -->
+            <!-- Temperature and Status Row -->
             <div class="metrics-grid">
                 <div class="metric-card">
                     <h3>Inverter Temp</h3>
@@ -106,23 +115,172 @@
                     </div>
                 </div>
 
-                <div class="metric-card">
-                    <h3>Battery Temp</h3>
-                    <div class="value-display">
-                        <div class="value-medium" id="batteryTemp">--</div>
-                        <div class="value-unit">°C</div>
-                        <div class="value-small">
-                            <span id="batteryTempRange">--</span>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="metric-card charging" id="chargingCard">
                     <h3>Charging</h3>
                     <div class="value-display">
                         <div class="charging-status" id="chargingStatus">Not Charging</div>
                         <div class="value-small">
                             <span id="chargingPower">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Victron BMS Section -->
+            <div class="section-header">
+                <h2>⚡ Victron BMS</h2>
+            </div>
+
+            <!-- Victron Pack Status -->
+            <div class="metrics-grid">
+                <div class="metric-card large victron-pack">
+                    <h3>Pack Status</h3>
+                    <div class="victron-pack-display">
+                        <div class="pack-metrics">
+                            <div class="pack-metric">
+                                <span class="label">Voltage</span>
+                                <span class="value" id="victronVoltage">--</span>
+                                <span class="unit">V</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Current</span>
+                                <span class="value" id="victronCurrent">--</span>
+                                <span class="unit">A</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Power</span>
+                                <span class="value" id="victronPower">--</span>
+                                <span class="unit">kW</span>
+                            </div>
+                            <div class="pack-metric">
+                                <span class="label">Temp</span>
+                                <span class="value" id="victronTemp">--</span>
+                                <span class="unit">°C</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-soc">
+                    <h3>State of Charge</h3>
+                    <div class="value-display">
+                        <div class="value-large" id="victronSOC">--</div>
+                        <div class="value-unit">%</div>
+                        <div class="value-small">SOH: <span id="victronSOH">--</span>%</div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-limits">
+                    <h3>Charge Limits</h3>
+                    <div class="limits-display">
+                        <div class="limit-item">
+                            <span class="label">Charge V:</span>
+                            <span id="victronChargeVoltageMax">--</span> V
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Charge I:</span>
+                            <span id="victronChargeCurrentMax">--</span> A
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Discharge I:</span>
+                            <span id="victronDischargeCurrentMax">--</span> A
+                        </div>
+                        <div class="limit-item">
+                            <span class="label">Discharge V:</span>
+                            <span id="victronDischargeVoltageMin">--</span> V
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card victron-info">
+                    <h3>Battery Info</h3>
+                    <div class="info-display">
+                        <div class="info-item">
+                            <span class="label">Type:</span>
+                            <span id="victronCellType">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Cells:</span>
+                            <span id="victronCellQty">--</span>S
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Capacity:</span>
+                            <span id="victronCapacity">--</span> Ah
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Firmware:</span>
+                            <span id="victronFirmware">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cell Voltage Monitoring -->
+            <div class="metric-card large cell-monitoring">
+                <h3>Cell Voltage Extrema</h3>
+                <div id="cellVoltageDisplay" class="cell-voltage-grid">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Energy Flow Diagram -->
+            <div class="section-header">
+                <h2>⚡ Energy Flow</h2>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card large energy-flow-card">
+                    <h3>Battery Charging Status</h3>
+                    <svg id="energyFlowDiagram" viewBox="0 0 600 200" class="energy-flow-svg">
+                        <!-- Battery -->
+                        <g id="battery" transform="translate(100, 75)">
+                            <rect x="0" y="0" width="120" height="60" rx="5" fill="rgba(0, 255, 136, 0.2)" stroke="#00ff88" stroke-width="2"/>
+                            <rect x="120" y="20" width="12" height="20" fill="#00ff88"/>
+                            <text x="60" y="38" text-anchor="middle" fill="#00ff88" font-size="16" font-weight="bold">BATTERY</text>
+                        </g>
+
+                        <!-- Charger/Grid -->
+                        <g id="charger" transform="translate(400, 70)">
+                            <polygon points="60,0 120,30 60,60 0,30" fill="rgba(255, 136, 68, 0.2)" stroke="#ff8844" stroke-width="2"/>
+                            <text x="60" y="35" text-anchor="middle" fill="#ff8844" font-size="14" font-weight="bold">CHARGER</text>
+                        </g>
+
+                        <!-- Charger to Battery (charging) -->
+                        <g id="flowFromCharger" class="flow-arrow" opacity="0">
+                            <defs>
+                                <marker id="arrowCharger" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+                                    <polygon points="0,0 10,5 0,10" fill="#ff8844"/>
+                                </marker>
+                            </defs>
+                            <line x1="390" y1="100" x2="232" y2="100" stroke="#ff8844" stroke-width="3" marker-end="url(#arrowCharger)" class="animated-arrow"/>
+                            <text id="powerFromCharger" x="310" y="90" text-anchor="middle" fill="#ff8844" font-size="14" font-weight="bold">0 kW</text>
+                        </g>
+                    </svg>
+                </div>
+
+                <!-- Energy Statistics Panel -->
+                <div class="metric-card energy-stats">
+                    <h3>Energy Statistics (Today)</h3>
+                    <div class="energy-stats-grid">
+                        <div class="energy-stat">
+                            <span class="stat-label">Charged</span>
+                            <span class="stat-value" id="energyConsumed">0.00</span>
+                            <span class="stat-unit">kWh</span>
+                        </div>
+                        <div class="energy-stat">
+                            <span class="stat-label">Discharged</span>
+                            <span class="stat-value" id="energyRegen">0.00</span>
+                            <span class="stat-unit">kWh</span>
+                        </div>
+                        <div class="energy-stat">
+                            <span class="stat-label">Net Energy</span>
+                            <span class="stat-value" id="energyNet">0.00</span>
+                            <span class="stat-unit">kWh</span>
+                        </div>
+                        <div class="energy-stat efficiency">
+                            <span class="stat-label">Efficiency</span>
+                            <span class="stat-value" id="energyEfficiency">0</span>
+                            <span class="stat-unit">%</span>
                         </div>
                     </div>
                 </div>
@@ -217,7 +375,7 @@
                     <pre id="detailsInverter">Loading...</pre>
                 </div>
                 <div class="detail-section">
-                    <h3>Battery</h3>
+                    <h3>Victron Battery</h3>
                     <pre id="detailsBattery">Loading...</pre>
                 </div>
                 <div class="detail-section">
@@ -227,6 +385,164 @@
                 <div class="detail-section">
                     <h3>GPS</h3>
                     <pre id="detailsGps">Loading...</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trips Tab -->
+        <div id="trips" class="tab-content">
+            <h2>Trip Statistics</h2>
+
+            <!-- Current Trip -->
+            <div class="section-header">
+                <h3>Current Trip</h3>
+            </div>
+            <div id="currentTripContainer">
+                <div class="metric-card large" id="currentTripCard">
+                    <div class="trip-status" id="tripStatus">No active trip</div>
+                    <div class="trip-metrics-grid" id="currentTripMetrics" style="display: none;">
+                        <div class="trip-metric">
+                            <span class="label">Duration</span>
+                            <span class="value" id="tripDuration">--</span>
+                            <span class="unit">min</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Distance</span>
+                            <span class="value" id="tripDistance">--</span>
+                            <span class="unit">km</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Energy Used</span>
+                            <span class="value" id="tripEnergyConsumed">--</span>
+                            <span class="unit">kWh</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Energy Regen</span>
+                            <span class="value" id="tripEnergyRegen">--</span>
+                            <span class="unit">kWh</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Avg Speed</span>
+                            <span class="value" id="tripAvgSpeed">--</span>
+                            <span class="unit">km/h</span>
+                        </div>
+                        <div class="trip-metric">
+                            <span class="label">Efficiency</span>
+                            <span class="value" id="tripEfficiency">--</span>
+                            <span class="unit">Wh/km</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Trips -->
+            <div class="section-header">
+                <h3>Recent Trips</h3>
+            </div>
+            <div class="trips-table-container">
+                <table class="trips-table" id="recentTripsTable">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Duration</th>
+                            <th>Distance</th>
+                            <th>Avg Speed</th>
+                            <th>Energy Used</th>
+                            <th>Energy Regen</th>
+                            <th>Efficiency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTripsBody">
+                        <tr>
+                            <td colspan="7" class="no-data">No trips recorded yet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- GPS Map Tab -->
+        <div id="map" class="tab-content">
+            <h2>GPS Map</h2>
+            <div class="map-controls">
+                <label>
+                    <input type="checkbox" id="showRouteCheckbox" checked>
+                    Show route history
+                </label>
+                <label>
+                    Route duration:
+                    <select id="routeDurationSelect">
+                        <option value="1h">Last 1 hour</option>
+                        <option value="6h" selected>Last 6 hours</option>
+                        <option value="24h">Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                    </select>
+                </label>
+                <button id="centerMapButton">Center on Vehicle</button>
+                <button id="refreshRouteButton">Refresh Route</button>
+            </div>
+            <div id="gpsMap" class="gps-map-container"></div>
+            <div class="map-info">
+                <span>Current Position: <strong id="mapCurrentPosition">--</strong></span>
+                <span>Altitude: <strong id="mapAltitude">--</strong> m</span>
+                <span>Satellites: <strong id="mapSatellites">--</strong></span>
+            </div>
+        </div>
+
+        <!-- Export Data Tab -->
+        <div id="export" class="tab-content">
+            <h2>Export Data</h2>
+            <div class="export-container">
+                <div class="export-section">
+                    <h3>Select Data to Export</h3>
+                    <div class="export-options">
+                        <label>
+                            Measurement:
+                            <select id="exportMeasurement">
+                                <option value="all">All Measurements</option>
+                                <option value="inverter_telemetry">Inverter Telemetry</option>
+                                <option value="battery_state">Battery State</option>
+                                <option value="motor_state">Motor State</option>
+                                <option value="gps_position">GPS Position</option>
+                                <option value="victron_pack">Victron Pack</option>
+                                <option value="victron_soc">Victron SOC/SOH</option>
+                                <option value="trips">Trip Data</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3>Time Range</h3>
+                    <div class="export-options">
+                        <label>
+                            Start Time:
+                            <input type="datetime-local" id="exportStartTime">
+                        </label>
+                        <label>
+                            End Time:
+                            <input type="datetime-local" id="exportEndTime">
+                        </label>
+                        <div class="quick-range-buttons">
+                            <button class="range-btn" data-hours="1">Last Hour</button>
+                            <button class="range-btn" data-hours="6">Last 6 Hours</button>
+                            <button class="range-btn" data-hours="24">Last 24 Hours</button>
+                            <button class="range-btn" data-hours="168">Last Week</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="export-section">
+                    <h3>Export Format</h3>
+                    <div class="export-buttons">
+                        <button id="exportCsvButton" class="export-btn csv">
+                            <span>Download CSV</span>
+                        </button>
+                        <button id="exportJsonButton" class="export-btn json">
+                            <span>Download JSON</span>
+                        </button>
+                    </div>
+                    <div id="exportStatus" class="export-status"></div>
                 </div>
             </div>
         </div>

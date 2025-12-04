@@ -1,0 +1,25 @@
+[Unit]
+Description=Nissan Leaf CAN Dashboard (LVGL)
+Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/ui-dashboard/build
+ExecStart=/home/emboo/Projects/test-lvgl-cross-compile/ui-dashboard/build/leaf-can-dashboard
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+MemoryLimit=256M
+CPUQuota=50%
+
+# Environment
+Environment="DISPLAY=:0"
+
+[Install]
+WantedBy=multi-user.target
