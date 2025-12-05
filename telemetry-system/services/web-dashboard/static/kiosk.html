@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=1280, height=720, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Leaf Telemetry - Kiosk Mode</title>
+    <title>Emboo Telemetry - Kiosk Mode</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -30,21 +30,30 @@
             height: 80px;
             background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
             border-bottom: 2px solid #00ff88;
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
             align-items: center;
             padding: 0 30px;
+        }
+
+        .clock {
+            font-size: 1.5rem;
+            font-weight: 300;
+            color: #00ff88;
+            text-align: left;
         }
 
         .top-bar h1 {
             font-size: 1.8rem;
             font-weight: 300;
             color: #00ff88;
+            text-align: center;
         }
 
         .status-indicators {
             display: flex;
             gap: 20px;
+            justify-content: flex-end;
         }
 
         .status-dot {
@@ -391,7 +400,8 @@
 <body>
     <!-- Top Bar -->
     <div class="top-bar">
-        <h1>⚡ Leaf Telemetry</h1>
+        <div class="clock" id="clock">--:--:--</div>
+        <h1>⚡ Emboo Telemetry</h1>
         <div class="status-indicators">
             <div class="status-item">
                 <span class="status-dot unknown" id="battery-status"></span>

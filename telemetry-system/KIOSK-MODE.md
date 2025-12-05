@@ -1,8 +1,10 @@
-# Kiosk Mode Dashboard
+# Kiosk Mode Dashboard - Emboo Telemetry
 
 ## Overview
 
 The kiosk mode dashboard is optimized for the **Victron Cerbo 50 touchscreen** (1280x720 resolution). It provides a non-scrolling, touch-friendly interface with bottom navigation buttons for easy one-handed operation.
+
+**Branding**: Emboo Telemetry (EMBOO Battery Management System)
 
 ## Features
 
@@ -12,6 +14,8 @@ The kiosk mode dashboard is optimized for the **Victron Cerbo 50 touchscreen** (
 - **Real-time WebSocket updates** (2-second fallback polling)
 - **High-contrast dark theme** optimized for visibility
 - **Touch-optimized controls** with no hover states
+- **Live clock** in top-left corner (HH:MM:SS format)
+- **Centered title** with status indicators on the right
 
 ## Pages
 
@@ -64,6 +68,18 @@ http://localhost:8080/kiosk
 ```
 http://<raspberry-pi-ip>:8080/kiosk
 ```
+
+### Quick Launch Script
+For quick testing without rebooting, use the launch script:
+```bash
+cd ~/Projects/test-lvgl-cross-compile/kiosk
+./launch-kiosk.sh
+```
+
+This will:
+- Kill any existing Chromium instances
+- Launch kiosk mode in full-screen
+- Exit with Alt+F4 or `pkill -f chromium-browser`
 
 ## Setup for Auto-Launch
 
@@ -145,6 +161,9 @@ disableAutoRotate()
 
 ### Layout Specifications
 - **Top Bar**: 80px height
+  - Left: Live clock (HH:MM:SS)
+  - Center: Emboo Telemetry title
+  - Right: Status indicators (Battery, Motor, GPS, Charger)
 - **Content Area**: 580px height (no scrolling)
 - **Bottom Navigation**: 60px height
 - **Total**: 720px (exactly fits screen)

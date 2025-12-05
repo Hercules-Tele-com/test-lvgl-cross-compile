@@ -8,11 +8,34 @@ let currentPage = 'overview';
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    initClock();
     initWebSocket();
     initNavigation();
     initGPSMap();
     fetchInitialData();
 });
+
+// ============================================================================
+// Clock
+// ============================================================================
+
+function initClock() {
+    updateClock();
+    // Update clock every second
+    setInterval(updateClock, 1000);
+}
+
+function updateClock() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    const clockElement = document.getElementById('clock');
+    if (clockElement) {
+        clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+    }
+}
 
 // ============================================================================
 // WebSocket Connection
