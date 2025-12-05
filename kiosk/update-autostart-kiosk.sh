@@ -33,14 +33,14 @@ cat > "$AUTOSTART_FILE" << EOF
 @xset -dpms
 @xset s noblank
 @unclutter -idle 0.1 -root
-@$BROWSER --kiosk --app=http://localhost:8080/kiosk
+@$BROWSER --kiosk --app=http://localhost:8080
 EOF
 
 echo "✓ Updated autostart file: $AUTOSTART_FILE"
 echo ""
 echo "Configuration:"
 echo "  Browser: $BROWSER"
-echo "  URL: http://localhost:8080/kiosk"
+echo "  URL: http://localhost:8080 (kiosk mode is default)"
 echo ""
 echo "The kiosk mode will launch automatically on next boot."
 echo "To test now without rebooting, run:"

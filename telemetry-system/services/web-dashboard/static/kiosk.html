@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Emboo Telemetry - Kiosk Mode</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,32 +19,32 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #0a0a0a;
             color: #e0e0e0;
-            width: 1280px;
-            height: 720px;
+            width: 800px;
+            height: 480px;
             overflow: hidden;
             position: fixed;
         }
 
         /* Top Bar */
         .top-bar {
-            height: 80px;
+            height: 50px;
             background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
             border-bottom: 2px solid #00ff88;
             display: grid;
             grid-template-columns: 1fr 2fr 1fr;
             align-items: center;
-            padding: 0 30px;
+            padding: 0 15px;
         }
 
         .clock {
-            font-size: 1.5rem;
+            font-size: 1rem;
             font-weight: 300;
             color: #00ff88;
             text-align: left;
         }
 
         .top-bar h1 {
-            font-size: 1.8rem;
+            font-size: 1.2rem;
             font-weight: 300;
             color: #00ff88;
             text-align: center;
@@ -52,26 +52,26 @@
 
         .status-indicators {
             display: flex;
-            gap: 20px;
+            gap: 8px;
             justify-content: flex-end;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             display: inline-block;
-            margin-right: 8px;
+            margin-right: 4px;
         }
 
         .status-dot.online {
             background: #00ff88;
-            box-shadow: 0 0 10px #00ff88;
+            box-shadow: 0 0 6px #00ff88;
         }
 
         .status-dot.offline {
             background: #ff3333;
-            box-shadow: 0 0 10px #ff3333;
+            box-shadow: 0 0 6px #ff3333;
         }
 
         .status-dot.unknown {
@@ -79,21 +79,21 @@
         }
 
         .status-item {
-            font-size: 1rem;
+            font-size: 0.7rem;
             display: flex;
             align-items: center;
         }
 
         /* Main Content Area */
         .content-area {
-            height: 580px;
+            height: 390px;
             overflow: hidden;
         }
 
         .page {
             display: none;
-            height: 580px;
-            padding: 30px;
+            height: 390px;
+            padding: 15px;
         }
 
         .page.active {
@@ -102,7 +102,7 @@
 
         /* Bottom Navigation */
         .bottom-nav {
-            height: 60px;
+            height: 40px;
             background: #1a1a1a;
             border-top: 2px solid #00ff88;
             display: flex;
@@ -116,7 +116,7 @@
             background: transparent;
             border: none;
             color: #888;
-            font-size: 1rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: all 0.3s;
             border-right: 1px solid #333;
@@ -124,7 +124,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 2px;
         }
 
         .nav-button:last-child {
@@ -139,22 +139,22 @@
         .nav-button.active {
             background: #00ff8820;
             color: #00ff88;
-            border-top: 3px solid #00ff88;
+            border-top: 2px solid #00ff88;
         }
 
         .nav-icon {
-            font-size: 1.4rem;
+            font-size: 1.1rem;
         }
 
         .nav-label {
-            font-size: 0.8rem;
+            font-size: 0.6rem;
         }
 
         /* Overview Page */
         #page-overview {
-            grid-template-columns: 1fr 1.5fr 1fr;
+            grid-template-columns: 1fr 0.8fr 1fr;
             grid-template-rows: 1fr 1fr;
-            gap: 20px;
+            gap: 10px;
         }
 
         /* Vehicle State Display (RND) */
@@ -162,31 +162,31 @@
             grid-column: 2;
             grid-row: 1 / -1;
             background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
-            border: 3px solid #00b4d8;
-            border-radius: 16px;
-            padding: 20px;
+            border: 2px solid #00b4d8;
+            border-radius: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 30px rgba(0, 180, 216, 0.3);
+            box-shadow: 0 0 20px rgba(0, 180, 216, 0.3);
         }
 
         .vehicle-state-label {
-            font-size: 1.2rem;
+            font-size: 0.7rem;
             color: #888;
             text-transform: uppercase;
-            letter-spacing: 3px;
-            margin-bottom: 20px;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
         }
 
         .vehicle-state-value {
-            font-size: 6rem;
+            font-size: 2.5rem;
             font-weight: 700;
             line-height: 1;
             color: #00b4d8;
             text-transform: uppercase;
-            letter-spacing: 5px;
+            letter-spacing: 3px;
         }
 
         .vehicle-state-value.drive {
@@ -205,14 +205,14 @@
         .temp-card {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
 
         .temp-item {
             background: #1a1a1a;
             border: 2px solid #333;
-            border-radius: 8px;
-            padding: 12px 15px;
+            border-radius: 6px;
+            padding: 6px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -220,12 +220,12 @@
         }
 
         .temp-item-label {
-            font-size: 1rem;
+            font-size: 0.7rem;
             color: #aaa;
         }
 
         .temp-item-value {
-            font-size: 1.8rem;
+            font-size: 1.1rem;
             font-weight: 500;
         }
 
@@ -261,8 +261,8 @@
         .metric-card {
             background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
             border: 2px solid #333;
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -272,35 +272,35 @@
 
         .metric-card:hover {
             border-color: #00ff88;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
         }
 
         .metric-label {
-            font-size: 1.2rem;
+            font-size: 0.75rem;
             color: #888;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 15px;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
         }
 
         .metric-value-huge {
-            font-size: 5rem;
+            font-size: 3rem;
             font-weight: 200;
             line-height: 1;
             color: #00ff88;
         }
 
         .metric-value-large {
-            font-size: 4rem;
+            font-size: 2.5rem;
             font-weight: 200;
             line-height: 1;
             color: #00ff88;
         }
 
         .metric-unit {
-            font-size: 1.5rem;
+            font-size: 0.9rem;
             color: #666;
-            margin-top: 10px;
+            margin-top: 5px;
         }
 
         .metric-value-huge.warning {
@@ -720,6 +720,6 @@
         </button>
     </div>
 
-    <script src="/static/js/kiosk.js"></script>
+    <script src="/js/kiosk.js"></script>
 </body>
 </html>
