@@ -11,22 +11,51 @@ Process: 1730 ExecStart=/usr/bin/python3 /home/pi/ft5316_touch.py (code=exited, 
 
 **Exit code 217/USER** means the service file specifies a user (`pi`) that doesn't exist on your system. Your system uses user `emboo`, not `pi`.
 
-## Quick Fix
+**Additionally**: The I2C scan shows **no device at address 0x38**, which means the touchscreen hardware is not being detected. This is likely a physical connection issue.
 
-Run the automated installation script:
+## Two-Step Fix Process
+
+### Step 1: Check Hardware Connection (CRITICAL!)
+
+Before fixing the service, we need to ensure the touchscreen hardware is connected:
 
 ```bash
 cd ~/Projects/test-lvgl-cross-compile/kiosk
-./install-victron-touchscreen.sh
+./check-touchscreen-hardware.sh
 ```
 
-This script will:
-1. ✅ Install required dependencies (python3-evdev, python3-smbus2, i2c-tools)
-2. ✅ Enable I2C on the Raspberry Pi
-3. ✅ Clone the FT5316 driver from GitHub
-4. ✅ Install the driver script to your home directory
-5. ✅ Create a systemd service configured for user `emboo` (not `pi`)
-6. ✅ Enable and start the touchscreen service
+This will:
+- ✅ Check if I2C is enabled
+- ✅ Scan for the FT5316 touchscreen at address 0x38
+- ✅ Check HDMI connection status
+- ✅ Provide troubleshooting steps if not detected
+
+**IMPORTANT**: The touchscreen uses HDMI's I2C pins (DDC) for communication. You MUST have:
+- ✅ HDMI cable connected from Raspberry Pi to Victron Cerbo 50 screen
+- ✅ Screen powered ON
+- ✅ Both ends of HDMI cable firmly seated
+
+If the touchscreen is NOT detected at address 0x38:
+1. Check HDMI cable connection
+2. Power cycle the Victron screen (unplug/replug power)
+3. Try a different HDMI cable
+4. Re-run the hardware check script
+
+### Step 2: Fix the Service (Once Hardware is Detected)
+
+After confirming the touchscreen shows at address 0x38:
+
+```bash
+cd ~/Projects/test-lvgl-cross-compile/kiosk
+sudo ./fix-touchscreen-service.sh
+```
+
+This will:
+1. ✅ Run Victron's official setup script (installs dependencies, creates driver)
+2. ✅ Update service file to use user `emboo` instead of `pi`
+3. ✅ Copy touchscreen script to `/home/emboo/ft5316_touch.py`
+4. ✅ Enable and start the touchscreen service
+5. ✅ Verify hardware detection one more time
 
 ## If You Want to Diagnose First
 
