@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initClock();
     initWebSocket();
     initNavigation();
+    initBatteryToggle();
     initGPSMap();
     fetchInitialData();
 });
@@ -129,6 +130,33 @@ function switchPage(pageName) {
 }
 
 // ============================================================================
+// Battery View Toggle
+// ============================================================================
+
+let batteryViewMode = 'summary'; // 'summary' or 'cells'
+
+function initBatteryToggle() {
+    const toggleBtn = document.getElementById('batteryViewToggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            if (batteryViewMode === 'summary') {
+                // Switch to cell view
+                batteryViewMode = 'cells';
+                document.getElementById('batterySummaryView').classList.remove('active');
+                document.getElementById('batteryCellsView').classList.add('active');
+                toggleBtn.textContent = '📋 Summary';
+            } else {
+                // Switch to summary view
+                batteryViewMode = 'summary';
+                document.getElementById('batteryCellsView').classList.remove('active');
+                document.getElementById('batterySummaryView').classList.add('active');
+                toggleBtn.textContent = '📊 Cell Chart';
+            }
+        });
+    }
+}
+
+// ============================================================================
 // Data Updates
 // ============================================================================
 
@@ -189,6 +217,19 @@ function updateDashboard(data) {
 
         // Color code battery temperature
         updateTemperatureColor('batteryTempItem', batteryTemp, 20, 50, 60);
+
+        // Update battery cell data (if available)
+        if (b.cell_voltages && Array.isArray(b.cell_voltages)) {
+            updateBatteryCells(b.cell_voltages);
+        }
+
+        // Cell range and delta
+        if (b.cell_max_voltage !== undefined && b.cell_min_voltage !== undefined) {
+            const cellRange = b.cell_max_voltage - b.cell_min_voltage;
+            updateElement('cellRange', cellRange.toFixed(0));
+            updateElement('cellDelta', cellRange.toFixed(0));
+            updateElement('cellDeltaChart', cellRange.toFixed(0));
+        }
     }
 
     // Motor data
@@ -203,28 +244,32 @@ function updateDashboard(data) {
         updateElement('motorTempOverview', motorTemp ? Math.round(motorTemp) : '--');
         updateTemperatureColor('motorTempItem', motorTemp, 40, 80, 100);
 
-        updateElement('dcBus', m.voltage_dc_bus || '--');
+        // DC Bus Voltage - scale down by 10
+        const dcBusVoltage = m.voltage_dc_bus || 0;
+        updateElement('dcBus', dcBusVoltage ? (dcBusVoltage / 10).toFixed(1) : '--');
 
-        // Vehicle State (Direction) - Prominent Display
-        const vehicleStateEl = document.getElementById('vehicleState');
-        if (vehicleStateEl) {
-            vehicleStateEl.classList.remove('drive', 'reverse', 'neutral');
-            let stateText = 'NEUTRAL';
-            let stateClass = 'neutral';
+        // DNR Selector - Update based on direction
+        const dnrD = document.getElementById('dnr-d');
+        const dnrN = document.getElementById('dnr-n');
+        const dnrR = document.getElementById('dnr-r');
 
+        if (dnrD && dnrN && dnrR) {
+            // Remove all active classes
+            dnrD.classList.remove('active', 'drive', 'reverse', 'neutral');
+            dnrN.classList.remove('active', 'drive', 'reverse', 'neutral');
+            dnrR.classList.remove('active', 'drive', 'reverse', 'neutral');
+
+            // Set active based on direction
             if (m.direction === 1) {
-                stateText = 'DRIVE';
-                stateClass = 'drive';
+                // Drive
+                dnrD.classList.add('active', 'drive');
             } else if (m.direction === 2) {
-                stateText = 'REVERSE';
-                stateClass = 'reverse';
-            } else if (m.direction === 0) {
-                stateText = 'NEUTRAL';
-                stateClass = 'neutral';
+                // Reverse
+                dnrR.classList.add('active', 'reverse');
+            } else {
+                // Neutral (default)
+                dnrN.classList.add('active', 'neutral');
             }
-
-            vehicleStateEl.textContent = stateText;
-            vehicleStateEl.classList.add(stateClass);
         }
 
         // Direction (for motor page)
@@ -287,9 +332,23 @@ function updateDashboard(data) {
 
     // Charger data
     const chargingStatusDiv = document.getElementById('chargingStatus');
-    if (data.charger && data.status_indicators && data.status_indicators.charger === 'online') {
+    const chargerOnline = data.charger && data.status_indicators && data.status_indicators.charger === 'online';
+
+    // Track previous charger state for auto-switch
+    if (!window.previousChargerState) {
+        window.previousChargerState = false;
+    }
+
+    if (chargerOnline) {
         const c = data.charger;
         const isCharging = c.charging_state === 1;
+
+        // Auto-switch to charger page when charger comes online
+        if (!window.previousChargerState && currentPage !== 'charger') {
+            console.log('Charger connected - auto-switching to charger page');
+            switchPage('charger');
+        }
+        window.previousChargerState = true;
 
         // Update status display
         if (chargingStatusDiv) {
@@ -320,15 +379,17 @@ function updateDashboard(data) {
             updateElement('chargerTimeRemaining', '--');
         }
     } else {
-        // Charger offline
+        // Charger disconnected
+        window.previousChargerState = false;
+
         if (chargingStatusDiv) {
             chargingStatusDiv.classList.remove('active');
         }
-        updateElement('chargingText', 'Charger Offline');
+        updateElement('chargingText', 'Charger Disconnected');
         updateElement('chargingPower', '--');
         updateElement('chargerVoltage', '--');
         updateElement('chargerCurrent', '--');
-        updateElement('chargerStatusText', 'Offline');
+        updateElement('chargerStatusText', 'Disconnected');
         updateElement('chargerTimeRemaining', '--');
     }
 
@@ -376,6 +437,86 @@ function updateTemperatureColor(elementId, temperature, normalMax, warmMax, hotM
         element.classList.add('temp-warm');
     } else {
         element.classList.add('temp-normal');
+    }
+}
+
+function updateBatteryCells(cellVoltages) {
+    /**
+     * Update battery cell chart with individual cell voltages
+     * cellVoltages: Array of cell voltage values in millivolts
+     */
+    if (!cellVoltages || cellVoltages.length === 0) {
+        return;
+    }
+
+    // Calculate statistics
+    const validCells = cellVoltages.filter(v => v > 0);
+    if (validCells.length === 0) return;
+
+    const maxVoltage = Math.max(...validCells);
+    const minVoltage = Math.min(...validCells);
+    const avgVoltage = validCells.reduce((a, b) => a + b, 0) / validCells.length;
+    const maxIndex = cellVoltages.indexOf(maxVoltage);
+    const minIndex = cellVoltages.indexOf(minVoltage);
+
+    // Update header stats
+    updateElement('highestCell', maxVoltage.toFixed(0));
+    updateElement('lowestCell', minVoltage.toFixed(0));
+    updateElement('avgCell', avgVoltage.toFixed(0));
+    updateElement('highestCellNum', `#${maxIndex + 1}`);
+    updateElement('lowestCellNum', `#${minIndex + 1}`);
+
+    // Update cell grid
+    const cellGrid = document.getElementById('cellGrid');
+    if (!cellGrid) return;
+
+    // Only rebuild grid if number of cells changed
+    if (cellGrid.children.length !== validCells.length) {
+        cellGrid.innerHTML = '';
+
+        cellVoltages.forEach((voltage, index) => {
+            if (voltage <= 0) return; // Skip invalid cells
+
+            const cellItem = document.createElement('div');
+            cellItem.className = 'cell-item';
+            cellItem.id = `cell-${index}`;
+
+            // Highlight highest and lowest
+            if (voltage === maxVoltage) {
+                cellItem.classList.add('highest');
+            } else if (voltage === minVoltage) {
+                cellItem.classList.add('lowest');
+            }
+
+            cellItem.innerHTML = `
+                <div class="cell-number">Cell ${index + 1}</div>
+                <div class="cell-voltage">${voltage.toFixed(0)}</div>
+            `;
+
+            cellGrid.appendChild(cellItem);
+        });
+    } else {
+        // Just update existing cells
+        cellVoltages.forEach((voltage, index) => {
+            if (voltage <= 0) return;
+
+            const cellItem = document.getElementById(`cell-${index}`);
+            if (!cellItem) return;
+
+            // Update classes
+            cellItem.classList.remove('highest', 'lowest');
+            if (voltage === maxVoltage) {
+                cellItem.classList.add('highest');
+            } else if (voltage === minVoltage) {
+                cellItem.classList.add('lowest');
+            }
+
+            // Update voltage display
+            const voltageEl = cellItem.querySelector('.cell-voltage');
+            if (voltageEl) {
+                voltageEl.textContent = voltage.toFixed(0);
+            }
+        });
     }
 }
 
