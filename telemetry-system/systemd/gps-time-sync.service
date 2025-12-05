@@ -1,0 +1,21 @@
+[Unit]
+Description=GPS Time Sync Service
+Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
+After=local-fs.target
+Before=influxdb.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/gps-time-sync/gps_time_sync.py
+
+# Restart policy
+Restart=always
+RestartSec=30
+StartLimitInterval=300
+StartLimitBurst=10
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

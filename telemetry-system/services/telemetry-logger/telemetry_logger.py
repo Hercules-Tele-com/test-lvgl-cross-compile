@@ -51,6 +51,9 @@ CAN_ID_GPS_TIME = 0x712
 CAN_ID_BODY_TEMP_SENSORS = 0x720
 CAN_ID_BODY_VOLTAGE = 0x721
 
+# Elcon Charger CAN IDs (extended 29-bit format)
+CAN_ID_ELCON_CHARGER_STATUS = 0x18FF50E5
+
 # Victron BMS Protocol CAN IDs (Little-Endian)
 CAN_ID_VICTRON_LIMITS = 0x351    # Charge/discharge voltage/current limits
 CAN_ID_VICTRON_SOC = 0x355       # State of Charge / State of Health
@@ -312,7 +315,7 @@ class CANTelemetryLogger:
         return point
 
     def parse_charger_status(self, data: bytes) -> Optional[Point]:
-        """Parse charger status CAN message"""
+        """Parse charger status CAN message (Nissan Leaf charger on 0x390)"""
         if len(data) < 7:
             return None
 
@@ -331,6 +334,55 @@ class CANTelemetryLogger:
             .field("charge_voltage", float(charge_voltage)) \
             .field("charge_time_remaining_min", int(charge_time)) \
             .field("charge_power_kw", float(charge_voltage * charge_current / 1000.0))
+
+        return point
+
+    def parse_elcon_charger_status(self, data: bytes) -> Optional[Point]:
+        """Parse Elcon charger status CAN message (0x18FF50E5)
+
+        Message format (8 bytes, 1000ms cycle):
+        Bytes 0-1: Output voltage (16-bit little-endian, scale 0.1 V)
+        Bytes 2-3: Output current (16-bit little-endian, scale 0.1 A)
+        Byte 4: Status flags (bits 0-4)
+            bit 0: HW status (0=OK, 1=fault)
+            bit 1: Temperature status (0=OK, 1=over-temp)
+            bit 2: Input voltage status (0=OK, 1=fault)
+            bit 3: Charging state (0=idle, 1=charging)
+            bit 4: Communication status (0=OK, 1=fault)
+        """
+        if len(data) < 5:
+            return None
+
+        # Parse output voltage and current (16-bit little-endian, scale 0.1)
+        output_voltage = int.from_bytes(data[0:2], 'little') * 0.1
+        output_current = int.from_bytes(data[2:4], 'little') * 0.1
+
+        # Parse status flags
+        status_byte = data[4]
+        hw_status = (status_byte >> 0) & 0x01
+        temp_status = (status_byte >> 1) & 0x01
+        input_voltage_status = (status_byte >> 2) & 0x01
+        charging_state = (status_byte >> 3) & 0x01
+        comm_status = (status_byte >> 4) & 0x01
+
+        # Calculate power
+        charge_power_kw = (output_voltage * output_current) / 1000.0
+
+        # Create InfluxDB point for Charger measurement
+        point = Point("Charger") \
+            .tag("serial_number", self._get_serial_number("Charger", "Elcon")) \
+            .tag("source", "elcon_charger") \
+            .tag("device_type", "Elcon_UHF") \
+            .tag("charger_type", "elcon") \
+            .field("output_voltage", float(output_voltage)) \
+            .field("output_current", float(output_current)) \
+            .field("charge_power_kw", float(charge_power_kw)) \
+            .field("charging_state", int(charging_state)) \
+            .field("hw_status", int(hw_status)) \
+            .field("temp_status", int(temp_status)) \
+            .field("input_voltage_status", int(input_voltage_status)) \
+            .field("comm_status", int(comm_status)) \
+            .field("online", 1)  # Message received, charger is online
 
         return point
 
@@ -725,6 +777,8 @@ class CANTelemetryLogger:
             point = self.parse_motor_rpm(msg.data)
         elif msg.arbitration_id == CAN_ID_CHARGER_STATUS:
             point = self.parse_charger_status(msg.data)
+        elif msg.arbitration_id == CAN_ID_ELCON_CHARGER_STATUS:
+            point = self.parse_elcon_charger_status(msg.data)
         elif msg.arbitration_id == CAN_ID_GPS_POSITION:
             point = self.parse_gps_position(msg.data)
         elif msg.arbitration_id == CAN_ID_GPS_VELOCITY:

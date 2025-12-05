@@ -92,6 +92,10 @@
 #define CAN_ID_UI_DASH_STATUS       0x730  // UI dashboard heartbeat
 #define CAN_ID_CUSTOM_GAUGE_CMD     0x740  // Commands to custom gauges
 
+// Elcon Charger CAN IDs (extended 29-bit format, 250 kbps)
+// Note: Uses extended CAN frame format (0x18FF50E5 = 418054373 decimal)
+#define CAN_ID_ELCON_CHARGER_STATUS 0x18FF50E5  // Charger status (output voltage, current, flags)
+
 // ============================================================================
 // STATE STRUCTURES
 // ============================================================================
@@ -133,13 +137,29 @@ typedef struct {
     uint8_t direction;      // 0=stopped, 1=forward, 2=reverse
 } MotorRPMState;
 
-// Charger status
+// Charger status (Nissan Leaf charger on 0x390)
 typedef struct {
     uint8_t charging;       // 0=not charging, 1=charging
     float charge_current;   // Charge current (A)
     float charge_voltage;   // Charge voltage (V)
     uint16_t charge_time;   // Time remaining (minutes)
 } ChargerState;
+
+// Elcon Charger status (on 0x18FF50E5)
+// Message format: 8 bytes at 1000ms cycle time
+// Bytes 0-1: Output voltage (16-bit, scale 0.1 V)
+// Bytes 2-3: Output current (16-bit, scale 0.1 A)
+// Byte 4: Status flags (bits 0-4)
+typedef struct {
+    float output_voltage;   // Output voltage (V)
+    float output_current;   // Output current (A)
+    uint8_t hw_status;      // Hardware status (0=OK, 1=fault)
+    uint8_t temp_status;    // Temperature status (0=OK, 1=over-temp)
+    uint8_t input_voltage_status;  // Input voltage status (0=OK, 1=fault)
+    uint8_t charging_state; // Charging state (0=idle, 1=charging)
+    uint8_t comm_status;    // Communication status (0=OK, 1=fault)
+    uint8_t online;         // Derived: 1 if recent message received, 0 otherwise
+} ElconChargerState;
 
 // GPS position data
 typedef struct {

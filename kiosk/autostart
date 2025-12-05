@@ -1,0 +1,21 @@
+#!/bin/bash
+# Leaf Dashboard Kiosk Autostart
+# This file should be placed in ~/.config/lxsession/LXDE-pi/autostart
+# or /etc/xdg/lxsession/LXDE-pi/autostart
+
+# Disable screen blanking and power management
+@xset s off
+@xset -dpms
+@xset s noblank
+
+# Hide mouse cursor after 0.1 seconds of inactivity
+@unclutter -idle 0.1 -root
+
+# Disable screensaver
+@xscreensaver -no-splash
+
+# Optional: Set display orientation (uncomment if needed)
+# @xrandr --output HDMI-1 --rotate normal
+
+# Optional: Set touchscreen calibration (uncomment if needed)
+# @xinput set-prop "your-touchscreen-device" --type=float "Coordinate Transformation Matrix" 1 0 0 0 1 0 0 0 1

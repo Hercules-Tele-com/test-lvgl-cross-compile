@@ -160,6 +160,46 @@
             margin-bottom: 16px;
         }
 
+        /* Status indicators */
+        .status-indicators {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #2a2a2a;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.online {
+            background: #4CAF50;
+            box-shadow: 0 0 8px #4CAF50;
+        }
+
+        .status-dot.offline {
+            background: #f44336;
+            box-shadow: 0 0 8px #f44336;
+        }
+
+        .status-dot.unknown {
+            background: #666;
+        }
+
         @media (max-width: 768px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -167,6 +207,16 @@
 
             .soc-value {
                 font-size: 3em;
+            }
+
+            .status-indicators {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .status-indicator {
+                font-size: 0.8em;
+                padding: 4px 10px;
             }
         }
     </style>
@@ -176,6 +226,20 @@
         <header>
             <h1>Nissan Leaf Telemetry</h1>
             <div class="status" id="status">Connecting...</div>
+            <div class="status-indicators">
+                <div class="status-indicator">
+                    <div class="status-dot unknown" id="battery-status"></div>
+                    <span>Battery</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot unknown" id="motor-status"></div>
+                    <span>Motor</span>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot unknown" id="gps-status"></div>
+                    <span>GPS</span>
+                </div>
+            </div>
         </header>
 
         <!-- Battery Section -->
@@ -205,6 +269,27 @@
                 <div class="metric-row">
                     <span class="metric-row-label">Temperature</span>
                     <span class="metric-row-value"><span id="batteryTemp">--</span> °C</span>
+                </div>
+            </div>
+
+            <!-- Charger Section (hidden by default, shown when charger is online) -->
+            <div class="card" id="charger-panel" style="display: none;">
+                <h2>🔌 Elcon Charger</h2>
+                <div class="metric-row">
+                    <span class="metric-row-label">Output Voltage</span>
+                    <span class="metric-row-value"><span id="charger-voltage">--</span> V</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Output Current</span>
+                    <span class="metric-row-value"><span id="charger-current">--</span> A</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Power</span>
+                    <span class="metric-row-value"><span id="charger-power">--</span> kW</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-row-label">Status</span>
+                    <span class="metric-row-value" id="charger-status">--</span>
                 </div>
             </div>
 
@@ -434,11 +519,59 @@
                 updateElement('speed', '--');
             }
 
+            // Charger data (Elcon charger)
+            const chargerPanel = document.getElementById('charger-panel');
+            if (data.charger && data.status_indicators && data.status_indicators.charger === 'online') {
+                // Charger is online - show panel and update data
+                if (chargerPanel) chargerPanel.style.display = 'block';
+
+                const c = data.charger;
+                updateElement('charger-voltage', (c.output_voltage || 0).toFixed(1));
+                updateElement('charger-current', (c.output_current || 0).toFixed(1));
+                updateElement('charger-power', (c.charge_power_kw || 0).toFixed(2));
+
+                // Status text based on charging state and flags
+                let statusText = '--';
+                if (c.charging_state === 1) {
+                    statusText = '🔋 Charging';
+                } else {
+                    statusText = '⏸️ Idle';
+                }
+
+                // Add error indicators if any faults
+                if (c.hw_status === 1) statusText += ' [HW Fault]';
+                if (c.temp_status === 1) statusText += ' [Over-Temp]';
+                if (c.input_voltage_status === 1) statusText += ' [Input Fault]';
+                if (c.comm_status === 1) statusText += ' [Comm Fault]';
+
+                updateElement('charger-status', statusText);
+            } else {
+                // Charger is offline - hide panel
+                if (chargerPanel) chargerPanel.style.display = 'none';
+            }
+
             // System info
             updateElement('hostname', data.hostname || '--');
             if (data.timestamp) {
                 const date = new Date(data.timestamp);
                 updateElement('lastUpdate', date.toLocaleTimeString());
+            }
+
+            // Update status indicators
+            if (data.status_indicators) {
+                updateStatusIndicator('battery-status', data.status_indicators.battery);
+                updateStatusIndicator('motor-status', data.status_indicators.motor);
+                updateStatusIndicator('gps-status', data.status_indicators.gps);
+            }
+        }
+
+        function updateStatusIndicator(elementId, status) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                // Remove all status classes
+                element.classList.remove('online', 'offline', 'unknown');
+                // Add the current status class
+                element.classList.add(status || 'unknown');
             }
         }
 
