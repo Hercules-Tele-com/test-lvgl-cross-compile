@@ -1,223 +1,244 @@
-# Victron Cerbo 50 Touchscreen Setup (FT5316)
+# Victron Cerbo 50 Touchscreen Setup
 
-This guide covers setting up the Victron Cerbo 50's FT5316 touchscreen on Raspberry Pi 4.
+Complete setup guide for the FT5316 capacitive touchscreen on Raspberry Pi 4.
 
-## Problem You're Experiencing
+## Quick Setup
 
-The service is failing with:
-```
-Process: 1730 ExecStart=/usr/bin/python3 /home/pi/ft5316_touch.py (code=exited, status=217/USER)
-```
-
-**Exit code 217/USER** means the service file specifies a user (`pi`) that doesn't exist on your system. Your system uses user `emboo`, not `pi`.
-
-**Additionally**: The I2C scan shows **no device at address 0x38**, which means the touchscreen hardware is not being detected. This is likely a physical connection issue.
-
-## Two-Step Fix Process
-
-### Step 1: Check Hardware Connection (CRITICAL!)
-
-Before fixing the service, we need to ensure the touchscreen hardware is connected:
+Run the automated setup script:
 
 ```bash
 cd ~/Projects/test-lvgl-cross-compile/kiosk
-./check-touchscreen-hardware.sh
+sudo ./setup-victron-touchscreen.sh
 ```
 
-This will:
-- ✅ Check if I2C is enabled
-- ✅ Scan for the FT5316 touchscreen at address 0x38
-- ✅ Check HDMI connection status
-- ✅ Provide troubleshooting steps if not detected
-
-**IMPORTANT**: The touchscreen uses HDMI's I2C pins (DDC) for communication. You MUST have:
-- ✅ HDMI cable connected from Raspberry Pi to Victron Cerbo 50 screen
-- ✅ Screen powered ON
-- ✅ Both ends of HDMI cable firmly seated
-
-If the touchscreen is NOT detected at address 0x38:
-1. Check HDMI cable connection
-2. Power cycle the Victron screen (unplug/replug power)
-3. Try a different HDMI cable
-4. Re-run the hardware check script
-
-### Step 2: Fix the Service (Once Hardware is Detected)
-
-After confirming the touchscreen shows at address 0x38:
-
+If I2C was just enabled, reboot:
 ```bash
-cd ~/Projects/test-lvgl-cross-compile/kiosk
-sudo ./fix-touchscreen-service.sh
+sudo reboot
 ```
 
-This will:
-1. ✅ Run Victron's official setup script (installs dependencies, creates driver)
-2. ✅ Update service file to use user `emboo` instead of `pi`
-3. ✅ Copy touchscreen script to `/home/emboo/ft5316_touch.py`
-4. ✅ Enable and start the touchscreen service
-5. ✅ Verify hardware detection one more time
+## What the Script Does
 
-## If You Want to Diagnose First
+1. **Enables I2C** in boot config (`/boot/firmware/config.txt` or `/boot/config.txt`)
+2. **Installs dependencies**: python3-pip, python3-smbus, i2c-tools, evdev
+3. **Configures permissions**: Adds user to input group, sets uinput permissions
+4. **Creates driver**: `/home/emboo/ft5316_touch.py` (Python touchscreen driver)
+5. **Creates service**: `victron-touchscreen.service` (auto-starts on boot)
+6. **Starts touchscreen**: Service starts immediately if hardware detected
 
-```bash
-cd ~/Projects/test-lvgl-cross-compile/kiosk
-./diagnose-touchscreen.sh
-```
+## Hardware Configuration
 
-This will show you:
-- Whether the service file exists and what user it's configured for
-- Whether the touchscreen script exists
-- Whether user 'pi' exists (it doesn't on your system)
-- I2C device detection
-- Python dependencies status
+### I2C Bus Configuration
+- **Bus**: I2C bus 21 (HDMI 1 DDC)
+- **Address**: 0x38 (FT5316 touchscreen controller)
+- **Connection**: Via HDMI's I2C/DDC pins
 
-## Manual Setup (Alternative)
+### Physical Setup
+- **HDMI Port**: Connect to HDMI 1 (second micro HDMI port on Pi 4)
+- **Screen**: Victron Cerbo 50 touchscreen
+- **Power**: Screen must be powered on
+- **Cable**: Micro HDMI to HDMI cable or adapter
 
-If you prefer to set it up manually:
+### Why HDMI 1 (bus 21)?
+Raspberry Pi 4 has two micro HDMI ports:
+- **HDMI 0** → I2C bus 20
+- **HDMI 1** → I2C bus 21 (where touchscreen was detected)
 
-### 1. Install Dependencies
-```bash
-sudo apt update
-sudo apt install -y python3-pip python3-evdev python3-smbus2 i2c-tools git
-```
+The touchscreen uses HDMI's DDC (Display Data Channel) pins for I2C communication.
 
-### 2. Enable I2C
-```bash
-# For Raspberry Pi OS Bookworm (newer):
-sudo nano /boot/firmware/config.txt
+## Boot Configuration Changes
 
-# For older Pi OS:
-sudo nano /boot/config.txt
+The setup script adds this to your boot config:
 
-# Add this line:
-dtparam=i2c_arm=on
-
-# Save and exit, then load the module:
-sudo modprobe i2c-dev
-```
-
-### 3. Clone the Driver
-```bash
-cd ~
-git clone https://github.com/lpopescu-victron/ft5316-touchscreen.git
-cp ft5316-touchscreen/ft5316_touch.py ~/
-chmod +x ~/ft5316_touch.py
-```
-
-### 4. Create Service File
-```bash
-sudo nano /etc/systemd/system/ft5316-touchscreen.service
-```
-
-Paste this content (note `User=emboo`):
 ```ini
-[Unit]
-Description=FT5316 Touchscreen Driver
-After=local-fs.target
-Before=display-manager.service
-
-[Service]
-Type=simple
-User=emboo
-Group=emboo
-WorkingDirectory=/home/emboo
-ExecStart=/usr/bin/python3 /home/emboo/ft5316_touch.py
-Restart=always
-RestartSec=5
-StartLimitInterval=300
-StartLimitBurst=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
+# Enable I2C for touchscreen
+dtparam=i2c_arm=on
 ```
 
-### 5. Enable and Start
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ft5316-touchscreen.service
-sudo systemctl start ft5316-touchscreen.service
-```
+**Location**: `/boot/firmware/config.txt` (Raspberry Pi OS Bookworm) or `/boot/config.txt` (older versions)
 
 ## Verification
 
 ### Check Service Status
 ```bash
-systemctl status ft5316-touchscreen.service
+systemctl status victron-touchscreen.service
 ```
+Should show: `Active: active (running)`
 
-Should show `Active: active (running)`.
-
-### Check I2C Devices
+### Check Hardware Detection
 ```bash
-sudo i2cdetect -y 1
+sudo i2cdetect -y 21
 ```
+Should show `38` in the grid (FT5316 touchscreen)
 
-You should see `38` in the output - this is the FT5316 touchscreen's I2C address.
-
-### View Logs
+### View Live Logs
 ```bash
-# Live logs:
-sudo journalctl -u ft5316-touchscreen.service -f
-
-# Recent logs:
-sudo journalctl -u ft5316-touchscreen.service -n 50
+sudo journalctl -u victron-touchscreen.service -f
 ```
+Touch the screen - you should see "Touch DOWN" and "Touch UP" messages
 
-### Test Manually
+### Check Input Device
 ```bash
-# Stop the service first:
-sudo systemctl stop ft5316-touchscreen.service
-
-# Run manually to see output:
-python3 ~/ft5316_touch.py
-
-# Press Ctrl+C to stop, then restart service:
-sudo systemctl start ft5316-touchscreen.service
+ls -l /dev/input/by-id/*FT5316*
 ```
+Should show the virtual touchscreen device
+
+## How It Works
+
+### Driver Architecture
+1. **Python driver** (`ft5316_touch.py`) reads touch data from I2C bus 21
+2. **evdev UInput** creates virtual touchscreen device (`/dev/input/eventX`)
+3. **Linux input system** sends events to X11/Wayland
+4. **Applications** receive touch as standard input events
+
+### Touch Event Flow
+```
+FT5316 (0x38) → I2C Bus 21 → Python Driver → evdev UInput →
+    /dev/input/eventX → X11/Wayland → Applications
+```
+
+### Service Configuration
+- **Name**: `victron-touchscreen.service`
+- **User**: root (required for uinput access)
+- **Auto-start**: Enabled for graphical.target
+- **Restart**: Always (auto-recovers from errors)
+- **Poll Rate**: 100 Hz (10ms delay)
 
 ## Troubleshooting
 
-### "No module named 'evdev'"
+### Touchscreen Not Detected
+
+**Check I2C bus 21:**
 ```bash
-sudo apt install -y python3-evdev
+ls -l /dev/i2c-21
+```
+If not found, I2C may not be enabled. Reboot after running setup script.
+
+**Scan for device:**
+```bash
+sudo i2cdetect -y 21
 ```
 
-### "No module named 'smbus2'"
+If `38` is NOT shown:
+1. Check HDMI cable is connected (Pi → Victron screen)
+2. Verify screen is powered on
+3. Try the other micro HDMI port on the Pi
+4. Power cycle the screen (unplug/replug power)
+5. Try a different HDMI cable
+
+### Service Won't Start
+
+**Check logs:**
 ```bash
-sudo apt install -y python3-smbus2
+sudo journalctl -u victron-touchscreen.service -n 50
 ```
 
-### "/dev/i2c-1 not found"
-I2C is not enabled. Enable it in `/boot/firmware/config.txt` (or `/boot/config.txt`) and reboot.
+**Common issues:**
+- I2C not enabled (reboot required)
+- Wrong I2C bus number (check with `i2cdetect -y 21`)
+- Permissions issue (driver runs as root to access uinput)
+- Missing evdev module (`pip3 install evdev`)
 
-### "No device detected at 0x38"
-- Check physical connections to the Victron Cerbo 50 screen
-- Verify the screen is powered on
-- Check HDMI connection is secure
-- Some touchscreens need the HDMI connection active to enable I2C
+### Touchscreen Not Responding
 
-### Service keeps restarting (exit code 217)
-The service file specifies a user that doesn't exist. Use the installation script which configures it for user `emboo`.
+**Check if driver sees touches:**
+```bash
+sudo journalctl -u victron-touchscreen.service -f
+```
+Touch the screen - you should see log messages.
 
-## Hardware Notes
+**If logs show touches but cursor doesn't move:**
+- Check that `/dev/input/by-id/*FT5316*` exists
+- Verify X11 or Wayland is running (`echo $DISPLAY`)
+- Restart desktop environment
 
-**Victron Cerbo 50 Touchscreen:**
-- Uses FT5316 capacitive touch controller
-- I2C address: 0x38
-- Requires I2C enabled on Raspberry Pi
-- Works over HDMI for video + I2C for touch
-- Touch input appears as `/dev/input/eventX` device
+**Manual test:**
+```bash
+sudo systemctl stop victron-touchscreen.service
+sudo python3 /home/emboo/ft5316_touch.py
+# Touch screen, watch for output
+# Ctrl+C to stop
+sudo systemctl start victron-touchscreen.service
+```
 
-## Reference
+### Wrong HDMI Port
 
-- Driver GitHub: https://github.com/lpopescu-victron/ft5316-touchscreen
-- FT5316 Datasheet: [FocalTech FT5316](https://www.buydisplay.com/download/ic/FT5316.pdf)
-- Victron Cerbo 50: https://www.victronenergy.com/accessories/cerbo-gx-50
+If touchscreen detected on bus 20 instead of 21:
+
+1. Edit the driver:
+```bash
+sudo nano /home/emboo/ft5316_touch.py
+```
+
+2. Change line:
+```python
+I2C_BUS = 21  # Change to 20
+```
+
+3. Restart service:
+```bash
+sudo systemctl restart victron-touchscreen.service
+```
 
 ## Integration with Kiosk Mode
 
-Once the touchscreen is working, it will automatically work with the Chromium kiosk mode. The touchscreen driver creates a standard Linux input device that Chromium recognizes automatically.
+The touchscreen works automatically with Chromium kiosk mode. No additional configuration needed.
 
-No additional configuration needed in the kiosk setup!
+The driver creates a standard Linux input device that Chromium recognizes as a touchscreen.
+
+## Uninstallation
+
+To remove the touchscreen driver:
+
+```bash
+# Stop and disable service
+sudo systemctl stop victron-touchscreen.service
+sudo systemctl disable victron-touchscreen.service
+
+# Remove files
+sudo rm /etc/systemd/system/victron-touchscreen.service
+sudo rm /home/emboo/ft5316_touch.py
+sudo rm /etc/udev/rules.d/10-uinput.rules
+
+# Remove I2C config (optional)
+# Edit boot config and remove "dtparam=i2c_arm=on"
+sudo nano /boot/firmware/config.txt
+
+# Reload systemd
+sudo systemctl daemon-reload
+```
+
+## Technical Specifications
+
+### FT5316 Touchscreen Controller
+- **Manufacturer**: FocalTech
+- **Type**: Capacitive multi-touch controller
+- **Max Touch Points**: 5 (driver uses first point only)
+- **I2C Address**: 0x38 (7-bit)
+- **I2C Speed**: 400 kHz (fast mode)
+- **Resolution**: Up to 1280x720
+
+### Communication Protocol
+- **Transport**: I2C via HDMI DDC pins
+- **Registers**:
+  - 0x02: Number of touch points
+  - 0x03-0x06: First touch point data (X,Y coordinates)
+- **Event Types**: Press Down (0), Contact (2), Lift Up (1)
+
+### Virtual Device Specifications
+- **Name**: FT5316-Touchscreen
+- **Type**: Touchscreen (absolute coordinates)
+- **Events**: BTN_TOUCH, ABS_X, ABS_Y, ABS_PRESSURE
+- **Resolution**: 1280x720
+- **Protocol**: Linux evdev (UInput)
+
+## References
+
+- [FT5316 Driver GitHub](https://github.com/lpopescu-victron/ft5316-touchscreen)
+- [FT5316 Datasheet](https://www.buydisplay.com/download/ic/FT5316.pdf)
+- [Victron Cerbo GX 50](https://www.victronenergy.com/accessories/cerbo-gx-50)
+- [Linux evdev Documentation](https://www.kernel.org/doc/html/latest/input/input.html)
+
+## License
+
+The touchscreen driver is based on work by lpopescu-victron.
+This documentation and setup script are provided as-is for the Nissan Leaf CAN Network project.
