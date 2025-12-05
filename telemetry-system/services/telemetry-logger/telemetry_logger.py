@@ -147,6 +147,7 @@ class CANTelemetryLogger:
             self.stats['usb_gps'] = {
                 'msg_count': 0,
                 'write_count': 0,
+                'error_count': 0,
                 'fix_count': 0,
                 'last_stats_time': time.time()
             }
