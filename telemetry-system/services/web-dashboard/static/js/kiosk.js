@@ -171,6 +171,27 @@ function fetchInitialData() {
         });
 }
 
+function isDataFresh(dataObject, maxAgeSeconds = 60) {
+    /**
+     * Check if data is fresh (less than maxAgeSeconds old)
+     * Returns true if fresh, false if stale or no timestamp
+     */
+    if (!dataObject || !dataObject.time) {
+        return false;
+    }
+
+    try {
+        const dataTime = new Date(dataObject.time);
+        const now = new Date();
+        const ageSeconds = (now - dataTime) / 1000;
+
+        return ageSeconds <= maxAgeSeconds;
+    } catch (e) {
+        console.error('Error checking data freshness:', e);
+        return false;
+    }
+}
+
 function updateDashboard(data) {
     // Update hostname in title
     if (data.hostname) {
@@ -181,7 +202,8 @@ function updateDashboard(data) {
     }
 
     // Battery data (EMBOO/Orion BMS - Schema V2)
-    if (data.battery) {
+    // Only show data if it's less than 60 seconds old
+    if (data.battery && isDataFresh(data.battery, 60)) {
         const b = data.battery;
 
         // SOC
@@ -230,10 +252,23 @@ function updateDashboard(data) {
             updateElement('cellDelta', cellRange.toFixed(0));
             updateElement('cellDeltaChart', cellRange.toFixed(0));
         }
+    } else {
+        // Battery data is stale or unavailable - show "--"
+        updateElement('soc', '--');
+        updateElement('soc-detail', '--');
+        updateElement('batteryTemp', '--');
+        updateElement('temp', '--');
+        updateElement('voltage', '--');
+        updateElement('current', '--');
+        updateElement('power', '--');
+        updateElement('power-detail', '--');
+        updateElement('cellRange', '--');
+        updateElement('cellDelta', '--');
+        updateElement('cellDeltaChart', '--');
     }
 
-    // Motor data
-    if (data.motor) {
+    // Motor data - only show if less than 60 seconds old
+    if (data.motor && isDataFresh(data.motor, 60)) {
         const m = data.motor;
         updateElement('rpm', m.rpm || 0);
         updateElement('torque', m.torque_actual || 0);
@@ -278,10 +313,29 @@ function updateDashboard(data) {
         else if (m.direction === 2) direction = 'Reverse';
         else if (m.direction === 0) direction = 'Neutral';
         updateElement('direction', direction);
+    } else {
+        // Motor data is stale or unavailable - show "--"
+        updateElement('rpm', '--');
+        updateElement('torque', '--');
+        updateElement('motorTemp', '--');
+        updateElement('motorTempOverview', '--');
+        updateElement('dcBus', '--');
+        updateElement('direction', '--');
+
+        // Reset DNR selector to neutral when data is stale
+        const dnrD = document.getElementById('dnr-d');
+        const dnrN = document.getElementById('dnr-n');
+        const dnrR = document.getElementById('dnr-r');
+        if (dnrD && dnrN && dnrR) {
+            dnrD.classList.remove('active', 'drive', 'reverse', 'neutral');
+            dnrN.classList.remove('active', 'drive', 'reverse', 'neutral');
+            dnrR.classList.remove('active', 'drive', 'reverse', 'neutral');
+            dnrN.classList.add('active', 'neutral'); // Default to neutral when stale
+        }
     }
 
-    // Inverter data
-    if (data.inverter) {
+    // Inverter data - only show if less than 60 seconds old
+    if (data.inverter && isDataFresh(data.inverter, 60)) {
         const inverterTemp = data.inverter.temp_inverter || 0;
         updateElement('inverterTemp', Math.round(inverterTemp));
         updateElement('inverterTempOverview', Math.round(inverterTemp));
@@ -296,38 +350,82 @@ function updateDashboard(data) {
         }
     }
 
-    // GPS data
-    if (data.gps) {
+    // GPS data - distinguish between service not running and no fix
+    if (data.gps && isDataFresh(data.gps, 60)) {
         const g = data.gps;
 
-        // Speed
-        if (g.speed_kmh !== undefined) {
-            updateElement('speed', g.speed_kmh.toFixed(1));
-            updateElement('gpsSpeed', g.speed_kmh.toFixed(1));
-        }
+        // Check if we have a valid GPS fix
+        const hasValidFix = g.latitude !== undefined &&
+                          g.longitude !== undefined &&
+                          g.latitude !== 0 &&
+                          g.longitude !== 0 &&
+                          (g.fix_quality === undefined || g.fix_quality > 0);
 
-        // Altitude
-        if (g.altitude !== undefined) {
-            updateElement('altitude', Math.round(g.altitude));
-        }
+        if (hasValidFix) {
+            // GPS has a fix - show all data
+            // Speed
+            if (g.speed_kmh !== undefined) {
+                updateElement('speed', g.speed_kmh.toFixed(1));
+                updateElement('gpsSpeed', g.speed_kmh.toFixed(1));
+            }
 
-        // Satellites
-        if (g.satellites !== undefined) {
-            updateElement('satellites', g.satellites);
-        }
+            // Altitude
+            if (g.altitude !== undefined) {
+                updateElement('altitude', Math.round(g.altitude));
+            } else {
+                updateElement('altitude', '--');
+            }
 
-        // Heading
-        if (g.heading !== undefined) {
-            updateElement('heading', Math.round(g.heading));
-        }
+            // Satellites
+            if (g.satellites !== undefined) {
+                updateElement('satellites', g.satellites);
+            } else {
+                updateElement('satellites', '--');
+            }
 
-        // Update map
-        if (g.latitude !== undefined && g.longitude !== undefined) {
+            // Heading
+            if (g.heading !== undefined) {
+                updateElement('heading', Math.round(g.heading));
+            } else {
+                updateElement('heading', '--');
+            }
+
+            // Update map
             updateMapPosition(g.latitude, g.longitude, g.heading || 0);
+
+            // Update GPS status to indicate active fix
+            if (marker) {
+                marker.bindPopup('<b>GPS Fix Active</b><br>' +
+                    `Lat: ${g.latitude.toFixed(6)}<br>` +
+                    `Lon: ${g.longitude.toFixed(6)}<br>` +
+                    `Satellites: ${g.satellites || 'N/A'}`);
+            }
+        } else {
+            // GPS service is running but no fix
+            updateElement('speed', '--');
+            updateElement('gpsSpeed', '--');
+            updateElement('altitude', '--');
+            updateElement('satellites', g.satellites || '0');
+            updateElement('heading', '--');
+
+            // Show "searching for fix" message on map
+            if (marker) {
+                marker.bindPopup('<b>GPS Service Active</b><br>Searching for fix...<br>' +
+                    `Satellites: ${g.satellites || 0}`);
+            }
         }
     } else {
+        // GPS service is not running or data is stale
         updateElement('speed', '--');
         updateElement('gpsSpeed', '--');
+        updateElement('altitude', '--');
+        updateElement('satellites', '--');
+        updateElement('heading', '--');
+
+        // Show "service offline" message on map
+        if (marker) {
+            marker.bindPopup('<b>GPS Service Offline</b><br>No recent data');
+        }
     }
 
     // Charger data

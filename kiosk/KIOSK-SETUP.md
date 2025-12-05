@@ -119,19 +119,25 @@ nano config/influxdb-cloud.env  # Add your cloud credentials
 sudo cp systemd/telemetry-logger-unified.service /etc/systemd/system/
 sudo cp systemd/cloud-sync.service /etc/systemd/system/
 sudo cp systemd/web-dashboard.service /etc/systemd/system/
+sudo cp systemd/desktop-dashboard.service /etc/systemd/system/
 
 # Enable and start services
 sudo systemctl daemon-reload
-sudo systemctl enable telemetry-logger-unified cloud-sync web-dashboard
-sudo systemctl start telemetry-logger-unified cloud-sync web-dashboard
+sudo systemctl enable telemetry-logger-unified cloud-sync web-dashboard desktop-dashboard
+sudo systemctl start telemetry-logger-unified cloud-sync web-dashboard desktop-dashboard
 ```
 
 Verify services are running:
 
 ```bash
 systemctl status telemetry-logger-unified
-systemctl status web-dashboard
+systemctl status web-dashboard          # Kiosk mode on port 8080
+systemctl status desktop-dashboard      # Desktop view on port 80
 ```
+
+**Port Configuration:**
+- **Port 8080**: Kiosk mode (for Victron touchscreen) - `http://localhost:8080`
+- **Port 80**: Original desktop dashboard (for remote viewing) - `http://localhost:80`
 
 ### 5. Configure Kiosk Mode
 
@@ -470,14 +476,20 @@ test-lvgl-cross-compile/
 │   ├── services/
 │   │   ├── telemetry-logger/   # CAN data logger
 │   │   ├── cloud-sync/         # Cloud synchronization
-│   │   └── web-dashboard/      # Flask web app
+│   │   └── web-dashboard/      # Flask web apps
 │   │       ├── static/
-│   │       │   ├── kiosk.html  # Kiosk mode UI
+│   │       │   ├── kiosk.html  # Kiosk mode UI (800x480)
+│   │       │   ├── index.html  # Desktop dashboard
 │   │       │   ├── js/kiosk.js # Kiosk JavaScript
 │   │       │   ├── fonts/      # Albert Sans fonts
 │   │       │   └── images/     # EMBOO logo
-│   │       └── app.py          # Flask server
+│   │       ├── app.py          # Kiosk server (port 8080)
+│   │       └── app_desktop.py  # Desktop server (port 80)
 │   ├── systemd/                # Service files
+│   │   ├── telemetry-logger-unified.service
+│   │   ├── cloud-sync.service
+│   │   ├── web-dashboard.service        # Port 8080
+│   │   └── desktop-dashboard.service    # Port 80
 │   ├── scripts/                # Utility scripts
 │   └── config/                 # Configuration files
 └── CLAUDE.md                   # Main project documentation
@@ -576,16 +588,38 @@ For issues or questions:
 
 ## 📝 Changelog
 
-### 2025-12-05 - Kiosk Mode Enhancements
-- Added DNR selector with letter-only display
-- Integrated Albert Sans font family
-- Added EMBOO logo above DNR selector
-- Fixed DC bus voltage scaling (divide by 10)
-- Added battery cell chart with highest/lowest highlighting
-- Changed "Charger Offline" to "Charger Disconnected"
-- Implemented auto-switch to charger page on connect
+### 2025-12-05 - Latest Updates
 
-### Previous Updates
+**Data Validation & Timeouts:**
+- Added 60-second timeout for all sensor data
+- Stale data (>60 seconds old) now shows as "--"
+- Prevents displaying outdated/incorrect values
+- Improves data reliability and user confidence
+
+**GPS Status Improvements:**
+- Distinguishes between "GPS Service Offline" and "Searching for fix"
+- Shows satellite count even when no position fix
+- Map marker popup indicates GPS status:
+  - "GPS Fix Active" - Valid position data
+  - "GPS Service Active - Searching for fix" - Service running, no position yet
+  - "GPS Service Offline" - No recent data from GPS service
+
+**Dual-Port Configuration:**
+- Port 8080: Kiosk mode (optimized for Victron touchscreen)
+- Port 80: Original desktop dashboard (for remote viewing)
+- Separate services for independent operation
+- Remote access from laptops/phones via port 80
+
+**Kiosk Mode Enhancements:**
+- DNR selector with letter-only display (D N R)
+- Integrated Albert Sans font family
+- EMBOO logo above DNR selector
+- Fixed DC bus voltage scaling (divide by 10)
+- Battery cell chart with highest/lowest highlighting
+- Changed "Charger Offline" to "Charger Disconnected"
+- Auto-switch to charger page when charger connects
+
+**Previous Updates:**
 - Optimized for 800x480 Victron Cerbo 50 touchscreen
 - Added bottom navigation with 5 pages
 - Implemented real-time WebSocket updates

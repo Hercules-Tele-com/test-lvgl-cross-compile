@@ -1,0 +1,17 @@
+[Unit]
+Description=EMBOO Desktop Dashboard (Port 80)
+After=network.target web-dashboard.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/user/test-lvgl-cross-compile/telemetry-system/services/web-dashboard
+ExecStart=/usr/bin/python3 /home/user/test-lvgl-cross-compile/telemetry-system/services/web-dashboard/app_desktop.py
+Restart=always
+RestartSec=5
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
