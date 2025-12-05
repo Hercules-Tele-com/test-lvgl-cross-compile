@@ -15,6 +15,9 @@ Environment=PYTHONUNBUFFERED=1
 # Monitor both CAN interfaces with independent bitrates
 Environment=CAN_INTERFACES=can0,can1
 Environment=CAN_BITRATES=250000,250000
+# USB GPS configuration
+Environment=USB_GPS_ENABLED=true
+Environment=USB_GPS_DEVICE=/dev/ttyACM0
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
 Restart=always
 RestartSec=10
