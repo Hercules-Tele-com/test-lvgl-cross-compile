@@ -152,9 +152,110 @@
 
         /* Overview Page */
         #page-overview {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1.5fr 1fr;
             grid-template-rows: 1fr 1fr;
             gap: 20px;
+        }
+
+        /* Vehicle State Display (RND) */
+        .vehicle-state-card {
+            grid-column: 2;
+            grid-row: 1 / -1;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border: 3px solid #00b4d8;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 30px rgba(0, 180, 216, 0.3);
+        }
+
+        .vehicle-state-label {
+            font-size: 1.2rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 20px;
+        }
+
+        .vehicle-state-value {
+            font-size: 6rem;
+            font-weight: 700;
+            line-height: 1;
+            color: #00b4d8;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+        }
+
+        .vehicle-state-value.drive {
+            color: #00ff88;
+        }
+
+        .vehicle-state-value.reverse {
+            color: #ff8800;
+        }
+
+        .vehicle-state-value.neutral {
+            color: #888;
+        }
+
+        /* Temperature Card */
+        .temp-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .temp-item {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .temp-item-label {
+            font-size: 1rem;
+            color: #aaa;
+        }
+
+        .temp-item-value {
+            font-size: 1.8rem;
+            font-weight: 500;
+        }
+
+        /* Temperature color coding */
+        .temp-item.temp-normal {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .temp-item.temp-normal .temp-item-value {
+            color: #00ff88;
+        }
+
+        .temp-item.temp-warm {
+            border-color: #ffaa00;
+            background: rgba(255, 170, 0, 0.1);
+        }
+
+        .temp-item.temp-warm .temp-item-value {
+            color: #ffaa00;
+        }
+
+        .temp-item.temp-hot {
+            border-color: #ff3333;
+            background: rgba(255, 51, 51, 0.1);
+            box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
+        }
+
+        .temp-item.temp-hot .temp-item-value {
+            color: #ff3333;
         }
 
         .metric-card {
@@ -401,7 +502,7 @@
     <!-- Top Bar -->
     <div class="top-bar">
         <div class="clock" id="clock">--:--:--</div>
-        <h1>⚡ Emboo Telemetry</h1>
+        <h1 id="page-title">⚡ EMBOO - LeafCruiser</h1>
         <div class="status-indicators">
             <div class="status-item">
                 <span class="status-dot unknown" id="battery-status"></span>
@@ -426,6 +527,7 @@
     <div class="content-area">
         <!-- Overview Page -->
         <div id="page-overview" class="page active">
+            <!-- Left Column -->
             <div class="metric-card">
                 <div class="metric-label">Battery SOC</div>
                 <div class="metric-value-huge" id="soc">--</div>
@@ -438,6 +540,13 @@
                 <div class="metric-unit">km/h</div>
             </div>
 
+            <!-- Center Column - Vehicle State -->
+            <div class="vehicle-state-card">
+                <div class="vehicle-state-label">Vehicle State</div>
+                <div class="vehicle-state-value neutral" id="vehicleState">NEUTRAL</div>
+            </div>
+
+            <!-- Right Column -->
             <div class="metric-card">
                 <div class="metric-label">Power</div>
                 <div class="metric-value-large" id="power">--</div>
@@ -445,9 +554,21 @@
             </div>
 
             <div class="metric-card">
-                <div class="metric-label">Battery Temp</div>
-                <div class="metric-value-large" id="batteryTemp">--</div>
-                <div class="metric-unit">°C</div>
+                <div class="metric-label">Temperatures</div>
+                <div class="temp-card">
+                    <div class="temp-item temp-normal" id="batteryTempItem">
+                        <span class="temp-item-label">Battery</span>
+                        <span class="temp-item-value"><span id="batteryTemp">--</span>°C</span>
+                    </div>
+                    <div class="temp-item temp-normal" id="motorTempItem">
+                        <span class="temp-item-label">Motor</span>
+                        <span class="temp-item-value"><span id="motorTempOverview">--</span>°C</span>
+                    </div>
+                    <div class="temp-item temp-normal" id="inverterTempItem">
+                        <span class="temp-item-label">Inverter</span>
+                        <span class="temp-item-value"><span id="inverterTempOverview">--</span>°C</span>
+                    </div>
+                </div>
             </div>
         </div>
 

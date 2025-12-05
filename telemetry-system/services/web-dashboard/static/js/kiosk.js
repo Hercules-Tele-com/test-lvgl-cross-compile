@@ -64,41 +64,64 @@ function initWebSocket() {
 // ============================================================================
 
 function initNavigation() {
+    console.log('Initializing navigation...');
     const navButtons = document.querySelectorAll('.nav-button');
+    console.log(`Found ${navButtons.length} navigation buttons`);
 
-    navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const targetPage = button.getAttribute('data-page');
-            switchPage(targetPage);
+    navButtons.forEach((button, index) => {
+        const pageName = button.getAttribute('data-page');
+        console.log(`Attaching click handler to button ${index}: ${pageName}`);
+
+        button.addEventListener('click', (event) => {
+            console.log(`Button clicked: ${pageName}`);
+            event.preventDefault();
+            event.stopPropagation();
+            switchPage(pageName);
         });
     });
+
+    console.log('Navigation initialization complete');
 }
 
 function switchPage(pageName) {
+    console.log(`Switching to page: ${pageName}`);
+
     // Hide all pages
     const pages = document.querySelectorAll('.page');
-    pages.forEach(page => page.classList.remove('active'));
+    console.log(`Found ${pages.length} pages`);
+    pages.forEach(page => {
+        page.classList.remove('active');
+    });
 
     // Remove active from all nav buttons
     const navButtons = document.querySelectorAll('.nav-button');
-    navButtons.forEach(btn => btn.classList.remove('active'));
+    navButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
 
     // Show target page
     const targetPage = document.getElementById(`page-${pageName}`);
     if (targetPage) {
         targetPage.classList.add('active');
+        console.log(`Activated page: page-${pageName}`);
+    } else {
+        console.error(`Page not found: page-${pageName}`);
     }
 
     // Activate nav button
     const targetButton = document.querySelector(`[data-page="${pageName}"]`);
     if (targetButton) {
         targetButton.classList.add('active');
+        console.log(`Activated button for: ${pageName}`);
+    } else {
+        console.error(`Button not found for page: ${pageName}`);
     }
 
     currentPage = pageName;
 
     // Refresh map if switching to GPS page
     if (pageName === 'gps' && map) {
+        console.log('Refreshing GPS map...');
         setTimeout(() => {
             map.invalidateSize();
         }, 100);
@@ -121,6 +144,14 @@ function fetchInitialData() {
 }
 
 function updateDashboard(data) {
+    // Update hostname in title
+    if (data.hostname) {
+        const title = document.getElementById('page-title');
+        if (title) {
+            title.textContent = `⚡ EMBOO - ${data.hostname}`;
+        }
+    }
+
     // Battery data (EMBOO/Orion BMS - Schema V2)
     if (data.battery) {
         const b = data.battery;
@@ -151,19 +182,13 @@ function updateDashboard(data) {
         updateElement('power', power.toFixed(2));
         updateElement('power-detail', power.toFixed(2));
 
-        // Temperature
-        const temp = b.temp_avg || b.temp_high || b.temperature || 0;
-        updateElement('batteryTemp', Math.round(temp));
-        updateElement('temp', Math.round(temp));
+        // Battery Temperature
+        const batteryTemp = b.temp_avg || b.temp_high || b.temperature || 0;
+        updateElement('batteryTemp', Math.round(batteryTemp));
+        updateElement('temp', Math.round(batteryTemp));
 
-        // Cell voltages
-        if (b.cell_voltage_min !== undefined && b.cell_voltage_max !== undefined) {
-            const minV = Math.round((b.cell_voltage_min || 0) * 1000);
-            const maxV = Math.round((b.cell_voltage_max || 0) * 1000);
-            const delta = maxV - minV;
-            updateElement('cellRange', `${minV} - ${maxV}`);
-            updateElement('cellDelta', delta);
-        }
+        // Color code battery temperature
+        updateTemperatureColor('batteryTempItem', batteryTemp, 20, 50, 60);
     }
 
     // Motor data
@@ -171,10 +196,38 @@ function updateDashboard(data) {
         const m = data.motor;
         updateElement('rpm', m.rpm || 0);
         updateElement('torque', m.torque_actual || 0);
-        updateElement('motorTemp', m.temp_stator ? Math.round(m.temp_stator) : '--');
+
+        // Motor temperature
+        const motorTemp = m.temp_stator || 0;
+        updateElement('motorTemp', motorTemp ? Math.round(motorTemp) : '--');
+        updateElement('motorTempOverview', motorTemp ? Math.round(motorTemp) : '--');
+        updateTemperatureColor('motorTempItem', motorTemp, 40, 80, 100);
+
         updateElement('dcBus', m.voltage_dc_bus || '--');
 
-        // Direction
+        // Vehicle State (Direction) - Prominent Display
+        const vehicleStateEl = document.getElementById('vehicleState');
+        if (vehicleStateEl) {
+            vehicleStateEl.classList.remove('drive', 'reverse', 'neutral');
+            let stateText = 'NEUTRAL';
+            let stateClass = 'neutral';
+
+            if (m.direction === 1) {
+                stateText = 'DRIVE';
+                stateClass = 'drive';
+            } else if (m.direction === 2) {
+                stateText = 'REVERSE';
+                stateClass = 'reverse';
+            } else if (m.direction === 0) {
+                stateText = 'NEUTRAL';
+                stateClass = 'neutral';
+            }
+
+            vehicleStateEl.textContent = stateText;
+            vehicleStateEl.classList.add(stateClass);
+        }
+
+        // Direction (for motor page)
         let direction = '--';
         if (m.direction === 1) direction = 'Forward';
         else if (m.direction === 2) direction = 'Reverse';
@@ -184,9 +237,17 @@ function updateDashboard(data) {
 
     // Inverter data
     if (data.inverter) {
-        updateElement('inverterTemp', Math.round(data.inverter.temp_inverter || 0));
+        const inverterTemp = data.inverter.temp_inverter || 0;
+        updateElement('inverterTemp', Math.round(inverterTemp));
+        updateElement('inverterTempOverview', Math.round(inverterTemp));
+        updateTemperatureColor('inverterTempItem', inverterTemp, 40, 80, 100);
+
+        // Fallback motor temp from inverter if motor data doesn't have it
         if (!data.motor || !data.motor.temp_stator) {
-            updateElement('motorTemp', Math.round(data.inverter.temp_motor || 0));
+            const motorTempFromInverter = data.inverter.temp_motor || 0;
+            updateElement('motorTemp', Math.round(motorTempFromInverter));
+            updateElement('motorTempOverview', Math.round(motorTempFromInverter));
+            updateTemperatureColor('motorTempItem', motorTempFromInverter, 40, 80, 100);
         }
     }
 
@@ -292,6 +353,29 @@ function updateStatusIndicator(elementId, status) {
     if (element) {
         element.classList.remove('online', 'offline', 'unknown');
         element.classList.add(status || 'unknown');
+    }
+}
+
+function updateTemperatureColor(elementId, temperature, normalMax, warmMax, hotMax) {
+    /**
+     * Color code temperature based on thresholds
+     * elementId: DOM element ID of the temp item
+     * temperature: Current temperature value
+     * normalMax: Max temp for normal (green)
+     * warmMax: Max temp for warm (yellow/orange)
+     * hotMax: Max temp for hot (red)
+     */
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    element.classList.remove('temp-normal', 'temp-warm', 'temp-hot');
+
+    if (temperature >= hotMax) {
+        element.classList.add('temp-hot');
+    } else if (temperature >= warmMax) {
+        element.classList.add('temp-warm');
+    } else {
+        element.classList.add('temp-normal');
     }
 }
 
