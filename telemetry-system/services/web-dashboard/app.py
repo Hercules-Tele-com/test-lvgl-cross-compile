@@ -659,14 +659,28 @@ def broadcast_realtime_data():
     while True:
         try:
             # Query current status (Schema V2)
+            battery_data = query_all_fields("Battery")
+            motor_data = query_all_fields("Motor")
+            inverter_data = query_all_fields("Inverter")
+            vehicle_data = query_all_fields("Vehicle")
+            gps_data = query_all_fields("GPS")
+            charger_data = query_all_fields("Charger")
+
             status = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "hostname": get_hostname(),
-                "battery": query_all_fields("Battery"),
-                "motor": query_all_fields("Motor"),
-                "inverter": query_all_fields("Inverter"),
-                "vehicle": query_all_fields("Vehicle"),
-                "gps": query_all_fields("GPS")
+                "battery": battery_data,
+                "motor": motor_data,
+                "inverter": inverter_data,
+                "vehicle": vehicle_data,
+                "gps": gps_data,
+                "charger": charger_data,
+                "status_indicators": {
+                    "battery": check_data_freshness(battery_data, threshold_seconds=30),
+                    "motor": check_data_freshness(motor_data, threshold_seconds=30),
+                    "gps": check_data_freshness(gps_data, threshold_seconds=30),
+                    "charger": check_data_freshness(charger_data, threshold_seconds=30)
+                }
             }
 
             # Update trip tracker with latest data
