@@ -313,6 +313,12 @@ def index():
     return send_from_directory('static', 'index.html')
 
 
+@app.route('/kiosk')
+def kiosk():
+    """Serve kiosk mode dashboard (optimized for Victron Cerbo 50 - 1280x720)"""
+    return send_from_directory('static', 'kiosk.html')
+
+
 @app.route('/api/status')
 def api_status():
     """Get current vehicle status (all metrics) - Schema V2"""

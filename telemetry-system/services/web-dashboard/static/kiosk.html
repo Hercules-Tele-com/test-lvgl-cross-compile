@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leaf Telemetry - Kiosk Mode</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            width: 1280px;
+            height: 720px;
+            overflow: hidden;
+            position: fixed;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            height: 80px;
+            background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
+            border-bottom: 2px solid #00ff88;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+        }
+
+        .top-bar h1 {
+            font-size: 1.8rem;
+            font-weight: 300;
+            color: #00ff88;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 20px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-dot.online {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+
+        .status-dot.offline {
+            background: #ff3333;
+            box-shadow: 0 0 10px #ff3333;
+        }
+
+        .status-dot.unknown {
+            background: #666;
+        }
+
+        .status-item {
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Main Content Area */
+        .content-area {
+            height: 580px;
+            overflow: hidden;
+        }
+
+        .page {
+            display: none;
+            height: 580px;
+            padding: 30px;
+        }
+
+        .page.active {
+            display: grid;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            height: 60px;
+            background: #1a1a1a;
+            border-top: 2px solid #00ff88;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .nav-button {
+            flex: 1;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .nav-button:last-child {
+            border-right: none;
+        }
+
+        .nav-button:hover {
+            background: #222;
+            color: #00ff88;
+        }
+
+        .nav-button.active {
+            background: #00ff8820;
+            color: #00ff88;
+            border-top: 3px solid #00ff88;
+        }
+
+        .nav-icon {
+            font-size: 1.4rem;
+        }
+
+        .nav-label {
+            font-size: 0.8rem;
+        }
+
+        /* Overview Page */
+        #page-overview {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border: 2px solid #333;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .metric-card:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .metric-label {
+            font-size: 1.2rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 15px;
+        }
+
+        .metric-value-huge {
+            font-size: 5rem;
+            font-weight: 200;
+            line-height: 1;
+            color: #00ff88;
+        }
+
+        .metric-value-large {
+            font-size: 4rem;
+            font-weight: 200;
+            line-height: 1;
+            color: #00ff88;
+        }
+
+        .metric-unit {
+            font-size: 1.5rem;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .metric-value-huge.warning {
+            color: #ff8800;
+        }
+
+        .metric-value-huge.error {
+            color: #ff3333;
+        }
+
+        /* Battery Page */
+        #page-battery {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+        }
+
+        .soc-display {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+            border: 2px solid #00ff88;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .soc-value {
+            font-size: 6rem;
+            font-weight: 200;
+            color: #00ff88;
+            line-height: 1;
+        }
+
+        .battery-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .battery-metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px 20px;
+        }
+
+        .battery-metric-label {
+            font-size: 1.1rem;
+            color: #888;
+        }
+
+        .battery-metric-value {
+            font-size: 1.8rem;
+            font-weight: 500;
+            color: #00ff88;
+        }
+
+        /* Motor Page */
+        #page-motor {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .motor-metric {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .motor-metric-label {
+            font-size: 1.2rem;
+            color: #888;
+        }
+
+        .motor-metric-value {
+            font-size: 2.2rem;
+            font-weight: 500;
+            color: #00b4d8;
+        }
+
+        /* GPS Page */
+        #page-gps {
+            grid-template-columns: 1fr;
+            grid-template-rows: 3fr 1fr;
+            gap: 20px;
+        }
+
+        #gps-map {
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+            border: 2px solid #00ff88;
+        }
+
+        .gps-info {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .gps-info-item {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .gps-info-label {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .gps-info-value {
+            font-size: 1.8rem;
+            font-weight: 500;
+            color: #00ff88;
+        }
+
+        /* Charger Page */
+        #page-charger {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+        }
+
+        .charging-status {
+            background: linear-gradient(135deg, #1a1a1a 0%, rgba(0, 180, 216, 0.2) 100%);
+            border: 2px solid #00b4d8;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .charging-status.active {
+            box-shadow: 0 0 30px rgba(0, 180, 216, 0.5);
+        }
+
+        .charging-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+        }
+
+        .charging-text {
+            font-size: 2rem;
+            color: #00b4d8;
+            margin-bottom: 20px;
+        }
+
+        .charging-power {
+            font-size: 3rem;
+            font-weight: 200;
+            color: #00ff88;
+        }
+
+        .charger-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .charger-metric {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .charger-metric-label {
+            font-size: 1.1rem;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .charger-metric-value {
+            font-size: 2.5rem;
+            font-weight: 500;
+            color: #00b4d8;
+        }
+
+        /* Loading state */
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <h1>⚡ Leaf Telemetry</h1>
+        <div class="status-indicators">
+            <div class="status-item">
+                <span class="status-dot unknown" id="battery-status"></span>
+                <span>Battery</span>
+            </div>
+            <div class="status-item">
+                <span class="status-dot unknown" id="motor-status"></span>
+                <span>Motor</span>
+            </div>
+            <div class="status-item">
+                <span class="status-dot unknown" id="gps-status"></span>
+                <span>GPS</span>
+            </div>
+            <div class="status-item">
+                <span class="status-dot unknown" id="charger-status"></span>
+                <span>Charger</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+        <!-- Overview Page -->
+        <div id="page-overview" class="page active">
+            <div class="metric-card">
+                <div class="metric-label">Battery SOC</div>
+                <div class="metric-value-huge" id="soc">--</div>
+                <div class="metric-unit">%</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Speed</div>
+                <div class="metric-value-huge" id="speed">--</div>
+                <div class="metric-unit">km/h</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Power</div>
+                <div class="metric-value-large" id="power">--</div>
+                <div class="metric-unit">kW</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">Battery Temp</div>
+                <div class="metric-value-large" id="batteryTemp">--</div>
+                <div class="metric-unit">°C</div>
+            </div>
+        </div>
+
+        <!-- Battery Page -->
+        <div id="page-battery" class="page">
+            <div class="soc-display">
+                <div class="soc-value" id="soc-detail">--<span style="font-size: 3rem;">%</span></div>
+                <div style="font-size: 1.2rem; color: #888; margin-top: 10px;">State of Charge</div>
+            </div>
+
+            <div class="battery-metrics">
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Voltage</span>
+                    <span class="battery-metric-value"><span id="voltage">--</span> V</span>
+                </div>
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Current</span>
+                    <span class="battery-metric-value"><span id="current">--</span> A</span>
+                </div>
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Power</span>
+                    <span class="battery-metric-value"><span id="power-detail">--</span> kW</span>
+                </div>
+            </div>
+
+            <div class="battery-metrics">
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Temperature</span>
+                    <span class="battery-metric-value"><span id="temp">--</span> °C</span>
+                </div>
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Cell Range</span>
+                    <span class="battery-metric-value"><span id="cellRange">--</span> mV</span>
+                </div>
+                <div class="battery-metric-row">
+                    <span class="battery-metric-label">Cell Delta</span>
+                    <span class="battery-metric-value"><span id="cellDelta">--</span> mV</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Motor Page -->
+        <div id="page-motor" class="page">
+            <div class="motor-metric">
+                <span class="motor-metric-label">Motor RPM</span>
+                <span class="motor-metric-value" id="rpm">--</span>
+            </div>
+
+            <div class="motor-metric">
+                <span class="motor-metric-label">Torque</span>
+                <span class="motor-metric-value"><span id="torque">--</span> Nm</span>
+            </div>
+
+            <div class="motor-metric">
+                <span class="motor-metric-label">Motor Temp</span>
+                <span class="motor-metric-value"><span id="motorTemp">--</span> °C</span>
+            </div>
+
+            <div class="motor-metric">
+                <span class="motor-metric-label">Inverter Temp</span>
+                <span class="motor-metric-value"><span id="inverterTemp">--</span> °C</span>
+            </div>
+
+            <div class="motor-metric">
+                <span class="motor-metric-label">DC Bus Voltage</span>
+                <span class="motor-metric-value"><span id="dcBus">--</span> V</span>
+            </div>
+
+            <div class="motor-metric">
+                <span class="motor-metric-label">Direction</span>
+                <span class="motor-metric-value" id="direction">--</span>
+            </div>
+        </div>
+
+        <!-- GPS Page -->
+        <div id="page-gps" class="page">
+            <div id="gps-map"></div>
+
+            <div class="gps-info">
+                <div class="gps-info-item">
+                    <div class="gps-info-label">Altitude</div>
+                    <div class="gps-info-value"><span id="altitude">--</span>m</div>
+                </div>
+                <div class="gps-info-item">
+                    <div class="gps-info-label">Satellites</div>
+                    <div class="gps-info-value" id="satellites">--</div>
+                </div>
+                <div class="gps-info-item">
+                    <div class="gps-info-label">Heading</div>
+                    <div class="gps-info-value"><span id="heading">--</span>°</div>
+                </div>
+                <div class="gps-info-item">
+                    <div class="gps-info-label">GPS Speed</div>
+                    <div class="gps-info-value"><span id="gpsSpeed">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charger Page -->
+        <div id="page-charger" class="page">
+            <div class="charging-status" id="chargingStatus">
+                <div class="charging-icon">🔌</div>
+                <div class="charging-text" id="chargingText">Not Charging</div>
+                <div class="charging-power"><span id="chargingPower">--</span> kW</div>
+            </div>
+
+            <div class="charger-metrics">
+                <div class="charger-metric">
+                    <div class="charger-metric-label">Output Voltage</div>
+                    <div class="charger-metric-value"><span id="chargerVoltage">--</span> V</div>
+                </div>
+                <div class="charger-metric">
+                    <div class="charger-metric-label">Output Current</div>
+                    <div class="charger-metric-value"><span id="chargerCurrent">--</span> A</div>
+                </div>
+                <div class="charger-metric">
+                    <div class="charger-metric-label">Status</div>
+                    <div class="charger-metric-value" id="chargerStatusText" style="font-size: 1.5rem;">--</div>
+                </div>
+                <div class="charger-metric">
+                    <div class="charger-metric-label">Time Remaining</div>
+                    <div class="charger-metric-value"><span id="chargerTimeRemaining">--</span> min</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <button class="nav-button active" data-page="overview">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Overview</span>
+        </button>
+        <button class="nav-button" data-page="battery">
+            <span class="nav-icon">🔋</span>
+            <span class="nav-label">Battery</span>
+        </button>
+        <button class="nav-button" data-page="motor">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Motor</span>
+        </button>
+        <button class="nav-button" data-page="gps">
+            <span class="nav-icon">🗺️</span>
+            <span class="nav-label">GPS</span>
+        </button>
+        <button class="nav-button" data-page="charger">
+            <span class="nav-icon">🔌</span>
+            <span class="nav-label">Charger</span>
+        </button>
+    </div>
+
+    <script src="/static/js/kiosk.js"></script>
+</body>
+</html>
