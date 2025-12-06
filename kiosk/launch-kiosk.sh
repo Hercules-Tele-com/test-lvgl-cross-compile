@@ -25,7 +25,8 @@ fi
 echo "Using browser: $BROWSER"
 
 # Launch chromium in kiosk mode
-DISPLAY=:0 $BROWSER --kiosk --app=http://localhost:8080/kiosk &
+DISPLAY=:0 $BROWSER --kiosk --app=http://localhost:8080 &
 
 echo "Kiosk mode launched!"
+echo "URL: http://localhost:8080 (default is now kiosk mode)"
 echo "To exit kiosk mode, press Alt+F4 or run: pkill -f chromium"

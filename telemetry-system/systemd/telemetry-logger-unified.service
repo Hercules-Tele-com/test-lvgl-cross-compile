@@ -1,9 +1,9 @@
 [Unit]
-Description=Nissan Leaf CAN Telemetry Logger (Unified - can0 + can1)
-Documentation=https://github.com/your-repo/leaf-can-network
+Description=EMBOO CAN Telemetry Logger (Unified - can0 + can1 + USB GPS)
+Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
 After=network.target can-setup.service influxdb.service
-Requires=can-setup.service influxdb.service
-Wants=network.target
+Requires=can-setup.service
+Wants=network.target influxdb.service
 
 [Service]
 Type=simple
@@ -12,9 +12,15 @@ Group=emboo
 WorkingDirectory=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger
 EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/config/influxdb-local.env
 Environment=PYTHONUNBUFFERED=1
+# Wait for InfluxDB to be ready (optional dependency)
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do systemctl is-active --quiet influxdb.service && break || sleep 2; done'
+ExecStartPre=/bin/sleep 3
 # Monitor both CAN interfaces with independent bitrates
 Environment=CAN_INTERFACES=can0,can1
 Environment=CAN_BITRATES=250000,250000
+# USB GPS configuration
+Environment=USB_GPS_ENABLED=true
+Environment=USB_GPS_DEVICE=/dev/ttyACM0
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/telemetry-logger/telemetry_logger.py
 Restart=always
 RestartSec=10

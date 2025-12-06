@@ -2,12 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280, height=720, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=800, height=480, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Emboo Telemetry - Kiosk Mode</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        @font-face {
+            font-family: 'Albert Sans';
+            src: url('/fonts/AlbertSans-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Albert Sans';
+            src: url('/fonts/AlbertSans-Medium.ttf') format('truetype');
+            font-weight: 500;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Albert Sans';
+            src: url('/fonts/AlbertSans-Bold.ttf') format('truetype');
+            font-weight: 700;
+            font-style: normal;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -16,35 +37,35 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Albert Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #0a0a0a;
             color: #e0e0e0;
-            width: 1280px;
-            height: 720px;
+            width: 800px;
+            height: 480px;
             overflow: hidden;
             position: fixed;
         }
 
         /* Top Bar */
         .top-bar {
-            height: 80px;
+            height: 50px;
             background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
             border-bottom: 2px solid #00ff88;
             display: grid;
             grid-template-columns: 1fr 2fr 1fr;
             align-items: center;
-            padding: 0 30px;
+            padding: 0 15px;
         }
 
         .clock {
-            font-size: 1.5rem;
+            font-size: 1rem;
             font-weight: 300;
             color: #00ff88;
             text-align: left;
         }
 
         .top-bar h1 {
-            font-size: 1.8rem;
+            font-size: 1.2rem;
             font-weight: 300;
             color: #00ff88;
             text-align: center;
@@ -52,26 +73,26 @@
 
         .status-indicators {
             display: flex;
-            gap: 20px;
+            gap: 8px;
             justify-content: flex-end;
         }
 
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             display: inline-block;
-            margin-right: 8px;
+            margin-right: 4px;
         }
 
         .status-dot.online {
             background: #00ff88;
-            box-shadow: 0 0 10px #00ff88;
+            box-shadow: 0 0 6px #00ff88;
         }
 
         .status-dot.offline {
             background: #ff3333;
-            box-shadow: 0 0 10px #ff3333;
+            box-shadow: 0 0 6px #ff3333;
         }
 
         .status-dot.unknown {
@@ -79,21 +100,21 @@
         }
 
         .status-item {
-            font-size: 1rem;
+            font-size: 0.7rem;
             display: flex;
             align-items: center;
         }
 
         /* Main Content Area */
         .content-area {
-            height: 580px;
+            height: 390px;
             overflow: hidden;
         }
 
         .page {
             display: none;
-            height: 580px;
-            padding: 30px;
+            height: 390px;
+            padding: 15px;
         }
 
         .page.active {
@@ -102,7 +123,7 @@
 
         /* Bottom Navigation */
         .bottom-nav {
-            height: 60px;
+            height: 40px;
             background: #1a1a1a;
             border-top: 2px solid #00ff88;
             display: flex;
@@ -116,7 +137,7 @@
             background: transparent;
             border: none;
             color: #888;
-            font-size: 1rem;
+            font-size: 0.75rem;
             cursor: pointer;
             transition: all 0.3s;
             border-right: 1px solid #333;
@@ -124,7 +145,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 4px;
+            gap: 2px;
         }
 
         .nav-button:last-child {
@@ -139,80 +160,91 @@
         .nav-button.active {
             background: #00ff8820;
             color: #00ff88;
-            border-top: 3px solid #00ff88;
+            border-top: 2px solid #00ff88;
         }
 
         .nav-icon {
-            font-size: 1.4rem;
+            font-size: 1.1rem;
         }
 
         .nav-label {
-            font-size: 0.8rem;
+            font-size: 0.6rem;
         }
 
         /* Overview Page */
         #page-overview {
-            grid-template-columns: 1fr 1.5fr 1fr;
+            grid-template-columns: 1fr 0.8fr 1fr;
             grid-template-rows: 1fr 1fr;
-            gap: 20px;
+            gap: 10px;
         }
 
-        /* Vehicle State Display (RND) */
+        /* Vehicle State Display (DNR Selector) */
         .vehicle-state-card {
             grid-column: 2;
             grid-row: 1 / -1;
-            background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
-            border: 3px solid #00b4d8;
-            border-radius: 16px;
-            padding: 20px;
+            background: #0a0a0a;
+            border: none;
+            border-radius: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 30px rgba(0, 180, 216, 0.3);
         }
 
-        .vehicle-state-label {
-            font-size: 1.2rem;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 3px;
+        .emboo-logo {
+            width: 150px;
+            height: auto;
             margin-bottom: 20px;
+            opacity: 0.9;
         }
 
-        .vehicle-state-value {
-            font-size: 6rem;
+        .dnr-selector {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dnr-letter {
+            font-size: 3.5rem;
             font-weight: 700;
             line-height: 1;
-            color: #00b4d8;
+            color: #333;
             text-transform: uppercase;
-            letter-spacing: 5px;
+            letter-spacing: 0;
+            transition: all 0.3s;
+            width: 60px;
+            text-align: center;
         }
 
-        .vehicle-state-value.drive {
+        .dnr-letter.active.drive {
             color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
         }
 
-        .vehicle-state-value.reverse {
+        .dnr-letter.active.reverse {
             color: #ff8800;
+            text-shadow: 0 0 20px rgba(255, 136, 0, 0.6);
         }
 
-        .vehicle-state-value.neutral {
+        .dnr-letter.active.neutral {
             color: #888;
+            text-shadow: 0 0 20px rgba(136, 136, 136, 0.4);
         }
 
         /* Temperature Card */
         .temp-card {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 4px;
         }
 
         .temp-item {
             background: #1a1a1a;
             border: 2px solid #333;
-            border-radius: 8px;
-            padding: 12px 15px;
+            border-radius: 6px;
+            padding: 6px 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -220,12 +252,12 @@
         }
 
         .temp-item-label {
-            font-size: 1rem;
+            font-size: 0.7rem;
             color: #aaa;
         }
 
         .temp-item-value {
-            font-size: 1.8rem;
+            font-size: 1.1rem;
             font-weight: 500;
         }
 
@@ -261,8 +293,8 @@
         .metric-card {
             background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
             border: 2px solid #333;
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -272,35 +304,35 @@
 
         .metric-card:hover {
             border-color: #00ff88;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
         }
 
         .metric-label {
-            font-size: 1.2rem;
+            font-size: 0.75rem;
             color: #888;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            margin-bottom: 15px;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
         }
 
         .metric-value-huge {
-            font-size: 5rem;
+            font-size: 3rem;
             font-weight: 200;
             line-height: 1;
             color: #00ff88;
         }
 
         .metric-value-large {
-            font-size: 4rem;
+            font-size: 2.5rem;
             font-weight: 200;
             line-height: 1;
             color: #00ff88;
         }
 
         .metric-unit {
-            font-size: 1.5rem;
+            font-size: 0.9rem;
             color: #666;
-            margin-top: 10px;
+            margin-top: 5px;
         }
 
         .metric-value-huge.warning {
@@ -316,6 +348,43 @@
             grid-template-columns: 1fr 1fr;
             grid-template-rows: auto 1fr;
             gap: 20px;
+        }
+
+        .battery-view-toggle {
+            position: absolute;
+            top: 60px;
+            right: 20px;
+            z-index: 10;
+        }
+
+        .toggle-btn {
+            background: #1a1a1a;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: 'Albert Sans', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            background: #00ff88;
+            color: #0a0a0a;
+        }
+
+        .battery-summary, .battery-cells {
+            display: none;
+            grid-column: 1 / -1;
+            grid-row: 1 / -1;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+        }
+
+        .battery-summary.active, .battery-cells.active {
+            display: grid;
         }
 
         .soc-display {
@@ -359,6 +428,104 @@
             font-size: 1.8rem;
             font-weight: 500;
             color: #00ff88;
+        }
+
+        /* Battery Cell Chart */
+        .battery-cells {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 10px;
+        }
+
+        .cell-chart-header {
+            grid-column: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a1a;
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 15px 20px;
+        }
+
+        .cell-stat {
+            text-align: center;
+        }
+
+        .cell-stat-label {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .cell-stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .cell-stat-value.high {
+            color: #ff3333;
+        }
+
+        .cell-stat-value.low {
+            color: #00b4d8;
+        }
+
+        .cell-chart-container {
+            grid-column: 1;
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 280px;
+        }
+
+        .cell-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 8px;
+        }
+
+        .cell-item {
+            background: #0f0f0f;
+            border: 2px solid #333;
+            border-radius: 6px;
+            padding: 8px 4px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .cell-item.highest {
+            border-color: #ff3333;
+            background: rgba(255, 51, 51, 0.1);
+            box-shadow: 0 0 10px rgba(255, 51, 51, 0.4);
+        }
+
+        .cell-item.lowest {
+            border-color: #00b4d8;
+            background: rgba(0, 180, 216, 0.1);
+            box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+        }
+
+        .cell-number {
+            font-size: 0.65rem;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .cell-voltage {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        .cell-item.highest .cell-voltage {
+            color: #ff3333;
+        }
+
+        .cell-item.lowest .cell-voltage {
+            color: #00b4d8;
         }
 
         /* Motor Page */
@@ -540,10 +707,14 @@
                 <div class="metric-unit">km/h</div>
             </div>
 
-            <!-- Center Column - Vehicle State -->
+            <!-- Center Column - DNR Selector -->
             <div class="vehicle-state-card">
-                <div class="vehicle-state-label">Vehicle State</div>
-                <div class="vehicle-state-value neutral" id="vehicleState">NEUTRAL</div>
+                <img src="/images/EMBOO_LogoWhite.png" alt="EMBOO" class="emboo-logo">
+                <div class="dnr-selector">
+                    <div class="dnr-letter" id="dnr-d">D</div>
+                    <div class="dnr-letter active neutral" id="dnr-n">N</div>
+                    <div class="dnr-letter" id="dnr-r">R</div>
+                </div>
             </div>
 
             <!-- Right Column -->
@@ -574,38 +745,75 @@
 
         <!-- Battery Page -->
         <div id="page-battery" class="page">
-            <div class="soc-display">
-                <div class="soc-value" id="soc-detail">--<span style="font-size: 3rem;">%</span></div>
-                <div style="font-size: 1.2rem; color: #888; margin-top: 10px;">State of Charge</div>
+            <div class="battery-view-toggle">
+                <button class="toggle-btn" id="batteryViewToggle">📊 Cell Chart</button>
             </div>
 
-            <div class="battery-metrics">
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Voltage</span>
-                    <span class="battery-metric-value"><span id="voltage">--</span> V</span>
+            <!-- Battery Summary View -->
+            <div class="battery-summary active" id="batterySummaryView">
+                <div class="soc-display">
+                    <div class="soc-value" id="soc-detail">--<span style="font-size: 3rem;">%</span></div>
+                    <div style="font-size: 1.2rem; color: #888; margin-top: 10px;">State of Charge</div>
                 </div>
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Current</span>
-                    <span class="battery-metric-value"><span id="current">--</span> A</span>
+
+                <div class="battery-metrics">
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Voltage</span>
+                        <span class="battery-metric-value"><span id="voltage">--</span> V</span>
+                    </div>
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Current</span>
+                        <span class="battery-metric-value"><span id="current">--</span> A</span>
+                    </div>
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Power</span>
+                        <span class="battery-metric-value"><span id="power-detail">--</span> kW</span>
+                    </div>
                 </div>
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Power</span>
-                    <span class="battery-metric-value"><span id="power-detail">--</span> kW</span>
+
+                <div class="battery-metrics">
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Temperature</span>
+                        <span class="battery-metric-value"><span id="temp">--</span> °C</span>
+                    </div>
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Cell Range</span>
+                        <span class="battery-metric-value"><span id="cellRange">--</span> mV</span>
+                    </div>
+                    <div class="battery-metric-row">
+                        <span class="battery-metric-label">Cell Delta</span>
+                        <span class="battery-metric-value"><span id="cellDelta">--</span> mV</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="battery-metrics">
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Temperature</span>
-                    <span class="battery-metric-value"><span id="temp">--</span> °C</span>
+            <!-- Battery Cell Chart View -->
+            <div class="battery-cells" id="batteryCellsView">
+                <div class="cell-chart-header">
+                    <div class="cell-stat">
+                        <div class="cell-stat-label">Highest Cell</div>
+                        <div class="cell-stat-value high" id="highestCell">-- mV</div>
+                        <div class="cell-stat-label" id="highestCellNum">#--</div>
+                    </div>
+                    <div class="cell-stat">
+                        <div class="cell-stat-label">Average</div>
+                        <div class="cell-stat-value" style="color: #00ff88;" id="avgCell">-- mV</div>
+                    </div>
+                    <div class="cell-stat">
+                        <div class="cell-stat-label">Lowest Cell</div>
+                        <div class="cell-stat-value low" id="lowestCell">-- mV</div>
+                        <div class="cell-stat-label" id="lowestCellNum">#--</div>
+                    </div>
+                    <div class="cell-stat">
+                        <div class="cell-stat-label">Delta</div>
+                        <div class="cell-stat-value" style="color: #ff8800;" id="cellDeltaChart">-- mV</div>
+                    </div>
                 </div>
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Cell Range</span>
-                    <span class="battery-metric-value"><span id="cellRange">--</span> mV</span>
-                </div>
-                <div class="battery-metric-row">
-                    <span class="battery-metric-label">Cell Delta</span>
-                    <span class="battery-metric-value"><span id="cellDelta">--</span> mV</span>
+
+                <div class="cell-chart-container">
+                    <div class="cell-grid" id="cellGrid">
+                        <!-- Cell items will be populated by JavaScript -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -720,6 +928,6 @@
         </button>
     </div>
 
-    <script src="/static/js/kiosk.js"></script>
+    <script src="/js/kiosk.js"></script>
 </body>
 </html>

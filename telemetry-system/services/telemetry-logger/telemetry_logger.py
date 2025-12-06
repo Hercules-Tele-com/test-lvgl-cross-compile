@@ -10,11 +10,21 @@ import time
 import signal
 import logging
 import socket
+import threading
 from datetime import datetime
 from typing import Dict, Any, Optional
 import can
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+# Optional: USB GPS support
+try:
+    import serial
+    import pynmea2
+    USB_GPS_AVAILABLE = True
+except ImportError:
+    USB_GPS_AVAILABLE = False
+    logging.warning("USB GPS support not available (install: pip3 install pyserial pynmea2)")
 
 # CAN message definitions (matching LeafCANMessages.h)
 # Nissan Leaf CAN IDs
@@ -112,7 +122,16 @@ class CANTelemetryLogger:
         for iface, bitrate in zip(interfaces, bitrates):
             self.can_configs.append({'interface': iface, 'bitrate': bitrate})
 
-        # Statistics (per interface)
+        # USB GPS configuration
+        self.usb_gps_enabled = os.getenv("USB_GPS_ENABLED", "false").lower() == "true"
+        self.usb_gps_device = os.getenv("USB_GPS_DEVICE", "/dev/ttyACM0")
+        self.gps_serial: Optional[serial.Serial] = None
+        self.gps_thread: Optional[threading.Thread] = None
+
+        # Get hostname for serial numbers
+        self.hostname = socket.gethostname()
+
+        # Statistics (per interface + GPS)
         self.stats = {}
         for config in self.can_configs:
             iface = config['interface']
@@ -120,6 +139,16 @@ class CANTelemetryLogger:
                 'msg_count': 0,
                 'write_count': 0,
                 'error_count': 0,
+                'last_stats_time': time.time()
+            }
+
+        # GPS statistics
+        if self.usb_gps_enabled:
+            self.stats['usb_gps'] = {
+                'msg_count': 0,
+                'write_count': 0,
+                'error_count': 0,
+                'fix_count': 0,
                 'last_stats_time': time.time()
             }
 
@@ -160,6 +189,25 @@ class CANTelemetryLogger:
                 self.buses[iface] = bus
 
             logger.info("All CAN buses initialized successfully")
+
+            # Initialize USB GPS if enabled
+            if self.usb_gps_enabled:
+                if not USB_GPS_AVAILABLE:
+                    logger.warning("USB GPS enabled but libraries not available (install: pip3 install pyserial pynmea2)")
+                    self.usb_gps_enabled = False
+                else:
+                    try:
+                        logger.info(f"Initializing USB GPS: {self.usb_gps_device}")
+                        self.gps_serial = serial.Serial(
+                            port=self.usb_gps_device,
+                            baudrate=9600,
+                            timeout=1.0
+                        )
+                        logger.info("USB GPS initialized successfully")
+                    except Exception as e:
+                        logger.warning(f"Failed to open USB GPS device: {e}")
+                        logger.info("Continuing without USB GPS")
+                        self.usb_gps_enabled = False
 
             # Initialize InfluxDB client
             logger.info(f"Connecting to InfluxDB: {self.influx_url}")
@@ -841,12 +889,91 @@ class CANTelemetryLogger:
                 stats['msg_count'] = 0
                 stats['write_count'] = 0
                 stats['error_count'] = 0
+                if 'fix_count' in stats:
+                    stats['fix_count'] = 0
                 stats['last_stats_time'] = now
+
+    def gps_reader_thread(self):
+        """USB GPS reader thread - runs in parallel with CAN"""
+        logger.info("Starting USB GPS reader thread")
+
+        try:
+            while self.running and self.gps_serial:
+                try:
+                    # Read line from GPS
+                    line = self.gps_serial.readline().decode('ascii', errors='ignore').strip()
+                    if not line:
+                        continue
+
+                    self.stats['usb_gps']['msg_count'] += 1
+
+                    # Parse NMEA sentence
+                    msg = pynmea2.parse(line)
+
+                    # Process GGA (position) sentences
+                    if isinstance(msg, pynmea2.types.talker.GGA):
+                        if msg.gps_qual > 0:  # Valid fix
+                            self.stats['usb_gps']['fix_count'] += 1
+
+                            serial_number = f"{self.hostname}-GPS-USB"
+                            point = Point("GPS") \
+                                .tag("serial_number", serial_number) \
+                                .tag("source", "usb_gps") \
+                                .tag("device_type", "U-Blox") \
+                                .field("latitude", float(msg.latitude)) \
+                                .field("longitude", float(msg.longitude)) \
+                                .field("altitude", float(msg.altitude)) \
+                                .field("satellites", int(msg.num_sats)) \
+                                .field("fix_quality", int(msg.gps_qual)) \
+                                .field("hdop", float(msg.horizontal_dil) if msg.horizontal_dil else 0.0)
+
+                            if self.influx_enabled and self.write_api:
+                                try:
+                                    self.write_api.write(bucket=self.influx_bucket, record=point)
+                                    self.stats['usb_gps']['write_count'] += 1
+                                except Exception as e:
+                                    logger.error(f"Failed to write GPS data to InfluxDB: {e}")
+
+                    # Process RMC (velocity) sentences
+                    elif isinstance(msg, pynmea2.types.talker.RMC):
+                        if msg.status == 'A':  # Active/valid
+                            serial_number = f"{self.hostname}-GPS-USB"
+                            point = Point("GPS") \
+                                .tag("serial_number", serial_number) \
+                                .tag("source", "usb_gps") \
+                                .tag("device_type", "U-Blox") \
+                                .field("speed_kmh", float(msg.spd_over_grnd * 1.852) if msg.spd_over_grnd else 0.0) \
+                                .field("heading", float(msg.true_course) if msg.true_course else 0.0)
+
+                            if self.influx_enabled and self.write_api:
+                                try:
+                                    self.write_api.write(bucket=self.influx_bucket, record=point)
+                                except Exception as e:
+                                    logger.error(f"Failed to write GPS velocity to InfluxDB: {e}")
+
+                except pynmea2.ParseError:
+                    # Ignore parse errors (incomplete sentences, etc.)
+                    pass
+                except Exception as e:
+                    if self.running:  # Only log if not shutting down
+                        logger.error(f"GPS reader error: {e}")
+                    time.sleep(1)  # Brief pause on error
+
+        except Exception as e:
+            logger.error(f"GPS thread fatal error: {e}")
+        finally:
+            logger.info("USB GPS reader thread stopped")
 
     def run(self):
         """Main loop: read CAN messages from all interfaces and log to InfluxDB"""
         self.running = True
         logger.info("Starting telemetry logger main loop")
+
+        # Start GPS thread if enabled
+        if self.usb_gps_enabled and self.gps_serial:
+            self.gps_thread = threading.Thread(target=self.gps_reader_thread, daemon=True)
+            self.gps_thread.start()
+            logger.info("GPS reader thread started")
 
         try:
             while self.running:
@@ -871,6 +998,19 @@ class CANTelemetryLogger:
         """Cleanup resources"""
         logger.info("Cleaning up...")
         self.running = False
+
+        # Stop GPS thread
+        if self.gps_thread and self.gps_thread.is_alive():
+            logger.info("Waiting for GPS thread to stop...")
+            self.gps_thread.join(timeout=2.0)
+
+        # Close GPS serial port
+        if self.gps_serial:
+            logger.info("Closing GPS serial port")
+            try:
+                self.gps_serial.close()
+            except Exception as e:
+                logger.warning(f"Error closing GPS port: {e}")
 
         if self.write_api:
             self.write_api.close()

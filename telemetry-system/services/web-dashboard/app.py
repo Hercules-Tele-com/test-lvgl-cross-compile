@@ -309,14 +309,20 @@ from(bucket: "{INFLUX_BUCKET}")
 
 @app.route('/')
 def index():
-    """Serve main dashboard page"""
-    return send_from_directory('static', 'index.html')
+    """Serve kiosk mode dashboard (optimized for 800x480 touchscreen) - DEFAULT"""
+    return send_from_directory('static', 'kiosk.html')
 
 
 @app.route('/kiosk')
 def kiosk():
-    """Serve kiosk mode dashboard (optimized for Victron Cerbo 50 - 1280x720)"""
+    """Serve kiosk mode dashboard (optimized for 800x480 touchscreen)"""
     return send_from_directory('static', 'kiosk.html')
+
+
+@app.route('/dashboard')
+def dashboard():
+    """Serve full desktop dashboard (for desktop/laptop access)"""
+    return send_from_directory('static', 'index.html')
 
 
 @app.route('/api/status')

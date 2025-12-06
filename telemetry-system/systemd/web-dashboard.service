@@ -1,8 +1,8 @@
 [Unit]
-Description=Nissan Leaf Web Dashboard
-Documentation=https://github.com/your-repo/leaf-can-network
-After=network.target
-Wants=network.target
+Description=EMBOO Web Dashboard (Kiosk Mode - Port 8080)
+Documentation=https://github.com/Hercules-Tele-com/test-lvgl-cross-compile
+After=network.target influxdb.service
+Wants=network.target influxdb.service
 
 [Service]
 Type=simple
@@ -13,6 +13,11 @@ EnvironmentFile=/home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/co
 Environment=PYTHONUNBUFFERED=1
 Environment=WEB_PORT=8080
 Environment=SECRET_KEY=change-this-in-production
+
+# Wait for InfluxDB to be ready before starting
+ExecStartPre=/bin/bash -c 'for i in {1..30}; do systemctl is-active --quiet influxdb.service && break || sleep 2; done'
+ExecStartPre=/bin/sleep 5
+
 ExecStart=/usr/bin/python3 /home/emboo/Projects/test-lvgl-cross-compile/telemetry-system/services/web-dashboard/app.py
 Restart=always
 RestartSec=10
